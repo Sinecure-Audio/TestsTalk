@@ -142,3 +142,28 @@ TEST_CASE("Test Allpass Frequency Response", "[Filter]") {
 
     testAllpassResponse(testContext);
 }
+
+TEST_CASE("Test Peak Frequency Response", "[Filter]") {
+    static constexpr size_t FFTSize = 1024;
+
+    constexpr auto sampleRate = 44100.0;
+    //Generate a series of cutoffs equal to each bin's frequency
+    const auto binNumber = GENERATE(range(size_t{1}, FFTSize/2));
+    const auto cutoff = binNumber*sampleRate/FFTSize;
+
+    constexpr auto q = QCoefficient{.707};
+
+    //A level for determining how close the measured level has to be to the expected level
+    constexpr auto tolerance = Decibel{4.0};
+
+    //Set the type of the filter to test
+    using FilterType = juce::dsp::IIR::Filter<double>;
+
+    auto testContext = makeFilterContext<FFTSize,
+            FilterResponse::Peak,
+            FilterType>
+            (cutoff, q, sampleRate,
+             Decibel{0.0}, tolerance, 2.0);
+
+    testPeakResponse(testContext);
+}

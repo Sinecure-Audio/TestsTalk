@@ -35,15 +35,34 @@ const auto makeNoiseBufferAndSpectrum() {
 
 template<typename FilterType, typename NoiseBuffer, typename NoiseSpectrum>
 struct FilterTestContext {
+    FilterTestContext(double newCutoff, const QCoefficient<double>& newQ,
+                      double newSampleRate, FilterType&& newFilter,
+                      const Decibel<double>& newRolloffPerOctave, const Decibel<double>& newTolerance,
+                      const NoiseBuffer& newNoiseBuffer, const NoiseSpectrum& newNoiseSpectrum)
+                      : cutoff(newCutoff), q(newQ), sampleRate(newSampleRate), filter(std::move(newFilter)),
+                      rolloffPerOctave(newRolloffPerOctave), tolerance(newTolerance),
+                      noiseBuffer(newNoiseBuffer), noiseSpectrum(newNoiseSpectrum)
+    {}
+
+    FilterTestContext(double newCutoff, const QCoefficient<double>& newQ,
+                      double newSampleRate, FilterType&& newFilter, double newGain,
+                      const Decibel<double>& newRolloffPerOctave, const Decibel<double>& newTolerance,
+                      const NoiseBuffer& newNoiseBuffer, const NoiseSpectrum& newNoiseSpectrum)
+            : cutoff(newCutoff), q(newQ), sampleRate(newSampleRate), filter(std::move(newFilter)), filterGain(newGain),
+              rolloffPerOctave(newRolloffPerOctave), tolerance(newTolerance),
+              noiseBuffer(newNoiseBuffer), noiseSpectrum(newNoiseSpectrum)
+    {}
+
     double cutoff;
     QCoefficient<double> q;
     double sampleRate;
+    double filterGain = 1.0;
     FilterType filter;
 
     Decibel<double> rolloffPerOctave, tolerance;
 
-    const NoiseBuffer& noiseBuffer;
-    const NoiseSpectrum& noiseSpectrum;
+    const NoiseBuffer noiseBuffer;
+    const NoiseSpectrum noiseSpectrum;
 
     static constexpr size_t SpectrumSize = std::tuple_size_v<NoiseSpectrum>;
 
@@ -54,6 +73,12 @@ struct FilterTestContext {
 
 template<typename FilterType, typename V, typename W>
 FilterTestContext(double, QCoefficient<double>, double, FilterType,
+                  Decibel<double>, Decibel<double>,
+                  V, W) ->
+FilterTestContext<FilterType, V, W>;
+
+template<typename FilterType, typename V, typename W>
+FilterTestContext(double, QCoefficient<double>, double, FilterType, double,
                   Decibel<double>, Decibel<double>,
                   V, W) ->
 FilterTestContext<FilterType, V, W>;
@@ -77,7 +102,7 @@ enum RolloffDirection {
 
 //A utility class for initializing JUCE's dsp::IIR filter
 template<typename Filter, FilterResponse Response, typename T>
-auto makeJuceDspIir(const T& cutoff, const QCoefficient<T>& q, const T& sampleRate) {
+auto makeJuceDspIir(const T& cutoff, const QCoefficient<T>& q, const T& sampleRate, const T& gain) {
     if constexpr(Response == FilterResponse::Lowpass) {
         return Filter {Filter::CoefficientsPtr::ReferencedType::makeLowPass(sampleRate, cutoff, q.count())};
     }
@@ -94,31 +119,35 @@ auto makeJuceDspIir(const T& cutoff, const QCoefficient<T>& q, const T& sampleRa
         return Filter{Filter::CoefficientsPtr::ReferencedType::makeAllPass(sampleRate, cutoff, q.count())};
     }
     else if constexpr(Response == FilterResponse::Peak) {
-        return Filter{Filter::CoefficientsPtr::ReferencedType::makePeakFilter(sampleRate, cutoff, q.count())};
+        return Filter{Filter::CoefficientsPtr::ReferencedType::makePeakFilter(sampleRate, cutoff, q.count(), gain)};
     }
     else if constexpr(Response == FilterResponse::LowShelf) {
-        return Filter{Filter::CoefficientsPtr::ReferencedType::makeLowShelf(sampleRate, cutoff, q.count())};
+        return Filter{Filter::CoefficientsPtr::ReferencedType::makeLowShelf(sampleRate, cutoff, q.count(), gain)};
     }
     else if constexpr(Response == FilterResponse::HighShelf) {
-        return Filter{Filter::CoefficientsPtr::ReferencedType::makeHighShelf(sampleRate, cutoff, q.count())};
+        return Filter{Filter::CoefficientsPtr::ReferencedType::makeHighShelf(sampleRate, cutoff, q.count(), gain)};
     }
 }
 
 template<typename Filter, FilterResponse Response, typename T>
-auto setupFilter(const T& cutoff, const QCoefficient<T>& q, const T& sampleRate ) {
+auto setupFilter(const T& cutoff, const QCoefficient<T>& q, const T& sampleRate, const T& gain = T{1}) {
     if constexpr(std::is_same_v<Filter, juce::dsp::IIR::Filter<float>>
                  || std::is_same_v<Filter, juce::dsp::IIR::Filter<double>>)
-        return makeJuceDspIir<Filter, Response>(cutoff, q, sampleRate);
+        return makeJuceDspIir<Filter, Response>(cutoff, q, sampleRate, gain);
 }
 
 template<size_t FFTSize, FilterResponse Response, typename Filter, typename T>
 auto makeFilterContext(T cutoff, QCoefficient<T> q, T sampleRate,
-                       Decibel<T> rolloff, Decibel<T> tolerance)
+                       Decibel<T> rolloff, Decibel<T> tolerance, T gain = 1.0)
 {
     const auto& [noiseBuffer, noiseSpectrum] = makeNoiseBufferAndSpectrum<FFTSize>();
-//    auto filter = setupFilter<Filter, Response>(cutoff, q, sampleRate);
-
-    return FilterTestContext{cutoff, q, sampleRate, std::move(setupFilter<Filter, Response>(cutoff, q, sampleRate)),
+// TODO: check why using references in the test context for the noise stuff doesn't work
+    return FilterTestContext{cutoff, q, sampleRate,
+                             std::move(setupFilter<Filter, Response>(cutoff,
+                                                                     q,
+                                                                     sampleRate,
+                                                                     gain)),
+                             gain,
                              rolloff, tolerance,
                              noiseBuffer, noiseSpectrum};
 }

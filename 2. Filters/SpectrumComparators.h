@@ -263,7 +263,7 @@ void testBandrejectResponse(FilterTestContext<Ts...>& testContext) {
     }
 }
 
-//Test the spectrum shape of an allpass filter
+//Test the spectrum shape and gain of a peak filter
 template<typename... Ts>
 void testAllpassResponse(FilterTestContext<Ts...>& testContext)
 {
@@ -280,4 +280,64 @@ void testAllpassResponse(FilterTestContext<Ts...>& testContext)
     }
 }
 
-//TODO: Add Peak and Shelving response tests
+//Test the spectrum shape and gain of a peak filter
+template<typename... Ts>
+void testPeakResponse(FilterTestContext<Ts...>& testContext)
+{
+    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize;
+
+    const auto cutoff  = DigitalFrequency{testContext.cutoff};
+
+    const auto filterSpectrum = getFilteredSpectrum(testContext.fft,
+                                                    testContext.noiseBuffer,
+                                                    testContext.filter);
+
+    SECTION("Spectrum Shape") {
+        for (auto i = 0; i < (cutoff.count()/testContext.sampleRate)*FFTSize/2; ++i) {
+            const Amplitude<float> noiseLevel = testContext.noiseSpectrum[i].getAverage();
+            const Amplitude<float> filteredLevel = filterSpectrum[i].getAverage();
+            REQUIRE((WithinDecibels<float>(filteredLevel,
+                                           testContext.tolerance)
+                             .match(Decibel<float>(noiseLevel))
+                     || noiseLevel < filteredLevel));
+            if(i > 0) {
+                const auto currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
+                const auto previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
+                REQUIRE((WithinDecibels<float>(previousBinLevel,
+                                               testContext.tolerance)
+                                 .match(Decibel(currentBinLevel))
+                         || ResidualDecibels<float>(Decibel(currentBinLevel), -120.0_dB)
+                                 .match(Decibel(previousBinLevel))
+                         || Decibel(currentBinLevel) > Decibel(previousBinLevel)));
+            }
+        }
+
+        for (auto i = (cutoff.count()/testContext.sampleRate); i < FFTSize/2; ++i) {
+            const Amplitude<float> noiseLevel = testContext.noiseSpectrum[i].getAverage();
+            const Amplitude<float> filteredLevel = filterSpectrum[i].getAverage();
+            REQUIRE((WithinDecibels<float>(filteredLevel,
+                                           testContext.tolerance)
+                             .match(Decibel<float>(noiseLevel))
+                     || noiseLevel < filteredLevel));
+
+            const auto currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
+            const auto previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
+            REQUIRE((WithinDecibels<float>(previousBinLevel,
+                                           testContext.tolerance)
+                             .match(Decibel(currentBinLevel))
+                     || ResidualDecibels<float>(Decibel(currentBinLevel), -120.0_dB)
+                             .match(Decibel(previousBinLevel))
+                     || Decibel(currentBinLevel) < Decibel(previousBinLevel)));
+        }
+    }
+
+
+    SECTION("Peak Level At Center Frequency") {
+        const auto levelDifference = calculateLevelReductionAtFrequency(testContext.filter,
+                                                                        cutoff.count(),
+                                                                        testContext.sampleRate);
+        REQUIRE_THAT(levelDifference, WithinDecibels(Decibel{Amplitude{testContext.filterGain}}, Decibel{.1}));
+    }
+}
+
+//TODO: Add Shelving response tests

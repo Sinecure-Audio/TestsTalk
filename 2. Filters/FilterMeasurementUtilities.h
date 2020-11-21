@@ -65,7 +65,7 @@ auto calculateLevelReductionAtFrequency(Filter& filter,
     const Decibel<float> peakFilterLevel = Amplitude(filterAverage.getAverage());
     const auto decibelValue = peakSinLevel.count()-peakFilterLevel.count();
     const auto sign = std::signbit(decibelValue) ? 1.0 : -1.0;
-    return Decibel{sign*decibelValue};
+    return Decibel{sign*std::abs(decibelValue)};
 }
 
 //Get the average absolute amplitude of a sin wave at a given frequency
