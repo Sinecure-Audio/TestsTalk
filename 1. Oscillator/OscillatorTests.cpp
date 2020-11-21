@@ -127,7 +127,6 @@ TEST_CASE("Perform Oscillator", "[Oscillator]") {
             const auto oscOutput = oscillator.perform();
             const Decibel<TestType> oscLevel = Amplitude{oscOutput};
             const auto ref = std::fmod(angleInRadians, TestType{1});
-            const Decibel<TestType> refLevel = Amplitude{ref};
 
             REQUIRE((ResidualDecibels<TestType>(ref, residualThreshold).match(oscLevel)
                   || closeToEdge({oscOutput, ref}, TestType{0}, TestType{1})));
@@ -189,92 +188,100 @@ TEST_CASE("Oscillator Waveforms" "[Oscillator]") {
         REQUIRE(dynamic_cast<Shaper<TestType>*>(osc.getWaveform().get()));
     }
 
-    SECTION("Perform Sin Wave") {
-        constexpr TestType oscillatorFrequency = 440.0;
-        constexpr TestType sampleRate = 44100.0;
+    SECTION("Test Basic Waveforms") {
+        //
+        const TestType oscillatorFrequency = GENERATE(take(100, random(0.0, 20000.0)));
+        auto sampleRate = GENERATE(TestType{44100},
+                                   TestType{48000},
+                                   TestType{88200},
+                                   TestType{96000},
+                                   TestType{176400},
+                                   TestType{192000});
 
-        Oscillator<TestType> osc{};
-        osc.setWaveform(std::make_unique<SinShaper<TestType>>());
-        osc.setFrequency(440.0);
-        osc.setSampleRate(44100.0);
+        SECTION("Perform Sin Wave") {
+            Oscillator<TestType> osc{};
+            osc.setWaveform(std::make_unique<SinShaper<TestType>>());
+            osc.setFrequency(oscillatorFrequency);
+            osc.setSampleRate(sampleRate);
 
 
-        for (auto i = 0; i < numIterations; ++i) {
-            const auto angleInRadians = oscillatorFrequency
-                                        * i
-                                        * juce::MathConstants<TestType>::twoPi
-                                        / sampleRate;
-            const auto oscOutput = Decibel<TestType>::convertAmplitudeToDecibel(osc.perform());
+            for (auto i = 0; i < numIterations; ++i) {
+                const auto angleInRadians = oscillatorFrequency
+                                            * i
+                                            * juce::MathConstants<TestType>::twoPi
+                                            / sampleRate;
+                const auto oscOutput = Decibel<TestType>::convertAmplitudeToDecibel(osc.perform());
 
-            REQUIRE_THAT(oscOutput,
-                         ResidualDecibels<TestType>(std::sin(angleInRadians), residualThreshold));
+                REQUIRE_THAT(oscOutput,
+                             ResidualDecibels<TestType>(std::sin(angleInRadians), residualThreshold));
+            }
         }
-    }
 
-    SECTION("Perform Triangle Wave") {
-        Oscillator<TestType> osc{};
-        osc.setWaveform(std::make_unique<TriShaper<TestType>>());
-        osc.setFrequency(440.0);
-        osc.setSampleRate(44100.0);
+        SECTION("Perform Triangle Wave") {
+            Oscillator<TestType> osc{};
+            osc.setWaveform(std::make_unique<TriShaper<TestType>>());
+            osc.setFrequency(oscillatorFrequency);
+            osc.setSampleRate(sampleRate);
 
-        for(auto i = 0; i < numIterations; ++i) {
-            const TestType referencePhase = std::fmod(i*440.0/44100.0, 1.0);
-            if(referencePhase < TestType{.25}) {
+            for (auto i = 0; i < numIterations; ++i) {
+                const TestType referencePhase = std::fmod(i * oscillatorFrequency / sampleRate, TestType{1});
+                if (referencePhase < TestType{.25}) {
                     REQUIRE_THAT(osc.perform(),
                                  Catch::WithinAbs(lerp(TestType{0},
-                                                               TestType{1},
-                                                               referencePhase * TestType{4}),
+                                                       TestType{1},
+                                                       referencePhase * TestType{4}),
                                                   TestType{.000001}));
-            }
-            else if(referencePhase < TestType{.75}) {
+                } else if (referencePhase < TestType{.75}) {
                     REQUIRE_THAT(osc.perform(),
                                  Catch::WithinAbs(lerp(TestType{1},
-                                                               TestType{-1},
-                                                               (referencePhase - TestType{.25}) * TestType{2}),
-                                         TestType{.000001}));
+                                                       TestType{-1},
+                                                       (referencePhase - TestType{.25}) * TestType{2}),
+                                                  TestType{.000001}));
+                } else {
+                    REQUIRE_THAT(osc.perform(),
+                                 Catch::WithinAbs(lerp(TestType{-1},
+                                                       TestType{0},
+                                                       (referencePhase - TestType{.75}) * TestType{4}),
+                                                  TestType{.000001}));
+                }
             }
-            else {
-                REQUIRE_THAT(osc.perform(),
-                             Catch::WithinAbs(lerp(TestType{-1},
-                                                           TestType{0},
-                                                           (referencePhase - TestType{.75}) * TestType{4}),
-                                              TestType{.000001}));
+        }
+
+        SECTION("Perform Square Wave") {
+            Oscillator<TestType> osc{};
+            osc.setWaveform(std::make_unique<SquareShaper<TestType>>());
+            osc.setFrequency(oscillatorFrequency);
+            osc.setSampleRate(sampleRate);
+
+            for (auto i = 0; i < numIterations; ++i) {
+                const auto expectHigh = std::fmod(i * oscillatorFrequency / sampleRate, TestType{1})
+                                        >= TestType{.5};
+                const auto reference = expectHigh ? TestType{1} : TestType{-1};
+                const auto oscOut = osc.perform();
+
+                //Test if our reference matches the output of the oscillator, or if they are close
+                //TODO: Consider only using the output of close to edge if the phase is close to 0 or .5
+                REQUIRE((Catch::WithinRel(reference).match(oscOut)
+                         || closeToEdge({oscOut, reference}, TestType{-1}, TestType{1})));
+            }
+        }
+
+        SECTION("Perform Sawtooth Wave") {
+            Oscillator<TestType> osc{};
+            osc.setWaveform(std::make_unique<SawShaper<TestType>>());
+            osc.setFrequency(oscillatorFrequency);
+            osc.setSampleRate(sampleRate);
+
+            for (auto i = 0; i < numIterations; ++i) {
+                const auto lerpIndex = std::fmod(i * oscillatorFrequency / sampleRate, TestType{1});
+                const auto oscOut = Amplitude{osc.perform()};
+                const auto ref = lerp(TestType{-1}, TestType{1}, lerpIndex);
+
+                //Check that the sawtooth is correctly between -1 and 1,
+                // or that the oscillator and reference are very close to a phase of 0
+                REQUIRE((WithinDecibels<TestType>(ref, tolerance).match(oscOut)
+                         || closeToEdge({oscOut.count(), ref}, TestType{-1}, TestType{1})));
             }
         }
     }
-
-    SECTION("Perform Square Wave") {
-        Oscillator<TestType> osc{};
-        osc.setWaveform(std::make_unique<SquareShaper<TestType>>());
-        osc.setFrequency(440.0);
-        osc.setSampleRate(44100.0);
-
-        for(auto i = 0; i < numIterations; ++i) {
-            const auto reference = double(i*440.0/44100.0 >= .5);
-            const auto oscOut = osc.perform();
-
-            REQUIRE((Catch::WithinRel(reference).match(oscOut)
-            || (Catch::WithinRel(reference).match(1.0) && Catch::WithinRel(oscOut).match(0.0))
-            || (Catch::WithinRel(reference).match(0.0) && Catch::WithinRel(oscOut).match(1.0))));
-        }
-    }
-
-    SECTION("Perform Sawtooth Wave") {
-        Oscillator<TestType> osc{};
-        osc.setWaveform(std::make_unique<SawShaper<TestType>>());
-        osc.setFrequency(440.0);
-        osc.setSampleRate(44100.0);
-
-        for(auto i = 0; i < numIterations; ++i) {
-            const TestType lerpIndex = std::fmod(i*440.0/44100.0, 1.0);
-            const auto oscOut = Amplitude{osc.perform()};
-            const auto ref = lerp(TestType{-1}, TestType{1}, lerpIndex);
-
-            //Check that the sawtooth is correcty between -1 and 1,
-            // or that the oscillator and reference are very close to a phase of 0
-            REQUIRE((WithinDecibels<TestType>(ref, tolerance).match(oscOut)
-                  || closeToEdge({oscOut.count(), ref}, TestType{-1}, TestType{1})));
-        }
-    }
-
 }

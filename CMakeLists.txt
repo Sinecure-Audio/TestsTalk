@@ -12,7 +12,7 @@ add_executable(TestExamples
         main.cpp
 
 #       These are the completed slide examples from the talk.
-#       The oscillator tests explore a more thourough version of each of these
+#       The oscillator tests explore a more thorough version of each of these
 #        "${CMAKE_CURRENT_LIST_DIR}/1. Oscillator/Examples/1. A Simple Test/OscillatorTests.cpp"
 #        "${CMAKE_CURRENT_LIST_DIR}/1. Oscillator/Examples/2. A Better Perform Test/OscillatorTests.cpp"
 #        "${CMAKE_CURRENT_LIST_DIR}/1. Oscillator/Examples/3. Changing The Sampling Rate/OscillatorTests.cpp"
@@ -46,5 +46,5 @@ set_target_properties(TestExamples PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF
 
 #Specify the tests as a standalone application so that JUCE doesn't complain about missing settings
 target_compile_definitions(TestExamples PRIVATE JUCE_STANDALONE_APPLICATION=1)
-#Add optimizations so that the filter tests don't take forever to run
+#Add in these optimizations if the filter tests take forever to run
 target_compile_options(TestExamples PRIVATE -O3 -fopenmp)
