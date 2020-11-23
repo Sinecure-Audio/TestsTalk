@@ -95,10 +95,6 @@ enum FilterResponse {
     HighShelf,
 };
 
-enum RolloffDirection {
-    Up, Down
-};
-
 
 //A utility class for initializing JUCE's dsp::IIR filter
 template<typename Filter, FilterResponse Response, typename T>

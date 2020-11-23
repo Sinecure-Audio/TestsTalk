@@ -87,6 +87,10 @@ auto getSinAverage(double frequency, double sampleRate) {
     return sinAverage;
 }
 
+enum RolloffDirection {
+    Up, Down
+};
+
 //Tests the level of a sin wave through a filter at different octaves
 //The test passes if the difference in level between octaves matches rolloff, within the tolerance
 template<RolloffDirection Direction, typename Filter, typename T>
@@ -124,4 +128,30 @@ void testRolloffCharacteristics(Filter& filter,
                 + std::abs(tolerance.count())
                 >= currentCutoffAverage.count());
     }
+}
+
+enum GainChange {
+    Louder, Quieter
+};
+
+template<GainChange Direction, typename T>
+auto isSameOr(const Decibel<T>& level1,
+              const Decibel<T>& level2,
+              const Decibel<T>& tolerance)
+{
+    const auto withinTolerance = std::abs(level1.count()-level2.count())
+                               < std::abs(tolerance.count());
+
+    if constexpr(Direction == GainChange::Louder)
+        return withinTolerance || (level1 > level2);
+    else
+        return withinTolerance || (level1 < level2);
+}
+
+template<GainChange Direction, typename T>
+auto isSameOr(const Amplitude<T>& level1,
+              const Amplitude<T>& level2,
+              const Decibel<T>& tolerance)
+{
+    return isSameOr<Direction>(Decibel{level1}, Decibel{level2}, tolerance);
 }

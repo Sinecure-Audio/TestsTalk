@@ -7,10 +7,11 @@
 #include "FilterMeasurementUtilities.h"
 
 //Test the spectrum shape, rolloff, and level reduction at the cutoff frequency of a non-resonant lowpass filter
-//TODO: Add the capability to test various q values
+//TODO: Add the capability to test various q values i.e. filters with resonance
+
 template<typename... Ts>
 void testLowpassResponse(FilterTestContext<Ts...>& testContext) {
-    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize;
+    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize/2;
 
     const auto filterSpectrum = getFilteredSpectrum(testContext.fft,
                                                     testContext.noiseBuffer,
@@ -21,24 +22,33 @@ void testLowpassResponse(FilterTestContext<Ts...>& testContext) {
             //From 0 to nyquist, check that:
             //The current bin's is around the same level for both the input and output
             //Or it is quieter for the input
-            const Amplitude<float> noiseLevel = testContext.noiseSpectrum[i].getAverage();
-            const Amplitude<float> filteredLevel = filterSpectrum[i].getAverage();
-            REQUIRE((WithinDecibels<float>(filteredLevel,
-                                           testContext.tolerance)
-                                   .match(Decibel<float>(noiseLevel))
-                    || noiseLevel > filteredLevel));
+            const Decibel<double> noiseLevel    = testContext.noiseSpectrum[i].getAverage();
+            const Decibel<double> filteredLevel = filterSpectrum[i].getAverage();
+
+            const auto outputSameOrQuieter = isSameOr<GainChange::Quieter>(noiseLevel,
+                                                                           filteredLevel,
+                                                                           testContext.tolerance);
+            const auto differenceVeryQuiet = ResidualDecibels<float>(noiseLevel,
+                                                                     -120.0_dB)
+                                             .match(filteredLevel);
+
+            REQUIRE((outputSameOrQuieter || differenceVeryQuiet));
+
             if(i > 0) {
                 //After the first bin:
                 //Check that the current bin is either the same level or quieter than the previous
                 //Or that the difference etween them is below the threshold of hearing
-                const auto currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
-                const auto previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
-                REQUIRE((WithinDecibels<float>(previousBinLevel,
-                                              testContext.tolerance)
-                                        .match(Decibel(currentBinLevel))
-                     || Decibel(currentBinLevel) < Decibel(previousBinLevel)
-                     || ResidualDecibels<float>(Decibel(currentBinLevel), -120.0_dB)
-                                        .match(Decibel(previousBinLevel))));
+                const Decibel<double> currentBinLevel  = filterSpectrum[i].getAverage();
+                const Decibel<double> previousBinLevel = filterSpectrum[i-1].getAverage();
+
+                const auto currentBinSameOrQuieter = isSameOr<GainChange::Quieter>(currentBinLevel,
+                                                                                   previousBinLevel,
+                                                                                   testContext.tolerance);
+                const auto binDifferenceVeryQuiet = ResidualDecibels<float>(currentBinLevel,
+                                                                         -120.0_dB)
+                                                    .match(previousBinLevel);
+
+                REQUIRE((currentBinSameOrQuieter || binDifferenceVeryQuiet));
             }
         }
     }
@@ -47,7 +57,7 @@ void testLowpassResponse(FilterTestContext<Ts...>& testContext) {
     const auto cutoff  = DigitalFrequency{testContext.cutoff};
 
     SECTION("Peak Level Amplitude At Cutoff") {
-        // Measure the gain difference of sin wave with the same frequncy as the warped cutoff
+        // Measure the gain difference of sin wave with the same frequency as the warped cutoff
         // input and output from the filter
         //Check that it's within half a dB of a 3dB reduction
         REQUIRE_THAT(calculateLevelReductionAtFrequency(testContext.filter,
@@ -60,7 +70,7 @@ void testLowpassResponse(FilterTestContext<Ts...>& testContext) {
 
     SECTION("Filter Gain Rolloff") {
         // Test that the rolloff per octave happens at the expected rate over several octaves
-        // This will pass if the rollof is inside the tolerance
+        // This will pass if the rolloff is inside the tolerance
         testRolloffCharacteristics<RolloffDirection::Up>(testContext.filter,
                                                          cutoff,
                                                          testContext.sampleRate,
@@ -73,39 +83,45 @@ void testLowpassResponse(FilterTestContext<Ts...>& testContext) {
 //TODO: Add the capability to test various q values
 template<typename... Ts>
 void testHighpassResponse(FilterTestContext<Ts...>& testContext) {
-    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize;
-    BufferAverager<float, FFTSize> accumulator{};
+    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize/2;
 
-    accumulator.reset();
-
-    const auto filterSpectrum = accumulator.getBuffer();
+    const auto filterSpectrum = getFilteredSpectrum(testContext.fft,
+                                                    testContext.noiseBuffer,
+                                                    testContext.filter);
 
     SECTION("Spectrum Shape") {
         for (auto i = 0; i < FFTSize/2; ++i) {
-            const Amplitude<float> noiseLevel = testContext.noiseSpectrum[i].getAverage();
-            const Amplitude<float> filteredLevel = filterSpectrum[i].getAverage();
-            REQUIRE((WithinDecibels<float>(filteredLevel,
-                                           testContext.tolerance)
-                                    .match(Decibel<float>(noiseLevel))
-                    || noiseLevel > filteredLevel));
+            const Decibel<double> noiseLevel = testContext.noiseSpectrum[i].getAverage();
+            const Decibel<double> filteredLevel = filterSpectrum[i].getAverage();
+
+            const auto outputSameOrQuieter = isSameOr<GainChange::Quieter>(noiseLevel,
+                                                                           filteredLevel,
+                                                                           testContext.tolerance);
+            const auto differenceVeryQuiet = ResidualDecibels<float>(noiseLevel,
+                                                                     -120.0_dB)
+                                             .match(filteredLevel);
+
+            REQUIRE((outputSameOrQuieter || differenceVeryQuiet));
 
             if(i > 0) {
-                const Amplitude<float> currentBinLevel = filterSpectrum[i].getAverage();
-                const Amplitude<float> previousBinLevel = filterSpectrum[i-1].getAverage();
+                const Decibel<double> currentBinLevel = filterSpectrum[i].getAverage();
+                const Decibel<double> previousBinLevel = filterSpectrum[i-1].getAverage();
 
-                REQUIRE((WithinDecibels<float>(previousBinLevel,
-                                               testContext.tolerance)
-                                        .match(Decibel(currentBinLevel))
-                         || ResidualDecibels<float>(Decibel(currentBinLevel), -120.0_dB)
-                                        .match(Decibel(previousBinLevel))
-                         || Decibel(currentBinLevel) > Decibel(previousBinLevel)));
+                const auto currentBinSameOrLouder = isSameOr<GainChange::Louder>(currentBinLevel,
+                                                                                 previousBinLevel,
+                                                                               testContext.tolerance);
+                const auto binDifferenceVeryQuiet = ResidualDecibels<float>(currentBinLevel,
+                                                                         -120.0_dB)
+                                                    .match(previousBinLevel);
+
+                REQUIRE((currentBinSameOrLouder || binDifferenceVeryQuiet));
             }
         }
     }
 
     const auto cutoff = DigitalFrequency{testContext.cutoff};
 
-    // Measure the gain difference of sin wave with the same frequncy as the warped cutoff
+    // Measure the gain difference of sin wave with the same frequency as the warped cutoff
     // input and output from the filter
     //Check that it's within half a dB of a 3dB reduction
     SECTION("Peak Level Amplitude At Cutoff") {
@@ -131,54 +147,55 @@ void testHighpassResponse(FilterTestContext<Ts...>& testContext) {
 //TODO: Add the capability to test various q values and verify the rolloff rate
 template<typename... Ts>
 void testBandpassResponse(FilterTestContext<Ts...>& testContext) {
-    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize;
+    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize/2;
 
     const auto cutoff = DigitalFrequency{testContext.cutoff};
+
+    const auto centerBinIndex = (cutoff.count() / testContext.sampleRate) * FFTSize;
 
     const auto filterSpectrum = getFilteredSpectrum(testContext.fft,
                                                     testContext.noiseBuffer,
                                                     testContext.filter);
 
     SECTION("Spectrum Shape") {
-        for (auto i = 0; i < (cutoff.count()/testContext.sampleRate)*FFTSize/2; ++i) {
-            const Amplitude<float> noiseLevel = testContext.noiseSpectrum[i].getAverage();
-            const Amplitude<float> filteredLevel = filterSpectrum[i].getAverage();
-            REQUIRE((WithinDecibels<float>(filteredLevel,
-                                           testContext.tolerance)
-                             .match(Decibel<float>(noiseLevel))
-                     || noiseLevel > filteredLevel));
-            if(i > 0) {
-                const auto currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
-                const auto previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
-                REQUIRE((WithinDecibels<float>(previousBinLevel,
-                                               testContext.tolerance)
-                                 .match(Decibel(currentBinLevel))
-                         || ResidualDecibels<float>(Decibel(currentBinLevel), -120.0_dB)
-                                 .match(Decibel(previousBinLevel))
-                         || Decibel(currentBinLevel) > Decibel(previousBinLevel)));
+        for (auto i = 0; i < FFTSize/2; ++i) {
+            const Decibel<double> noiseLevel    = Amplitude{testContext.noiseSpectrum[i].getAverage()};
+            const Decibel<double> filteredLevel = Amplitude{filterSpectrum[i].getAverage()};
+
+            const auto outputSameOrQuieter = isSameOr<GainChange::Quieter>(noiseLevel,
+                                                                           filteredLevel,
+                                                                           testContext.tolerance);
+            const auto differenceVeryQuiet = ResidualDecibels<float>(noiseLevel,
+                                                                     -120.0_dB)
+                                             .match(filteredLevel);
+
+            REQUIRE((outputSameOrQuieter || differenceVeryQuiet));
+
+            if (i > 0) {
+                const Decibel<double> currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
+                const Decibel<double> previousBinLevel = Amplitude{filterSpectrum[i - 1].getAverage()};
+
+                const auto binDifferenceVeryQuiet = ResidualDecibels<float>(currentBinLevel,
+                                                                         -120.0_dB)
+                                                    .match(previousBinLevel);
+
+                if (i < centerBinIndex) {
+                    const auto currentBinSameOrLouder = isSameOr<GainChange::Louder>(currentBinLevel,
+                                                                                     previousBinLevel,
+                                                                                     testContext.tolerance);
+                    REQUIRE((currentBinSameOrLouder || binDifferenceVeryQuiet));
+                }
+                else {
+                    const auto currentBinSameOrQuieter = isSameOr<GainChange::Quieter>(currentBinLevel,
+                                                                                       previousBinLevel,
+                                                                                      testContext.tolerance);
+                    REQUIRE((currentBinSameOrQuieter || binDifferenceVeryQuiet));
+                }
             }
-        }
-
-        for (auto i = (cutoff.count()/testContext.sampleRate); i < FFTSize/2; ++i) {
-            const Amplitude<float> noiseLevel = testContext.noiseSpectrum[i].getAverage();
-            const Amplitude<float> filteredLevel = filterSpectrum[i].getAverage();
-            REQUIRE((WithinDecibels<float>(filteredLevel,
-                                           testContext.tolerance)
-                             .match(Decibel<float>(noiseLevel))
-                     || noiseLevel > filteredLevel));
-
-            const auto currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
-            const auto previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
-            REQUIRE((WithinDecibels<float>(previousBinLevel,
-                                           testContext.tolerance)
-                             .match(Decibel(currentBinLevel))
-                     || ResidualDecibels<float>(Decibel(currentBinLevel), -120.0_dB)
-                             .match(Decibel(previousBinLevel))
-                     || Decibel(currentBinLevel) < Decibel(previousBinLevel)));
         }
     }
 
-    // Measure the gain difference of sin wave with the same frequncy as the warped cutoff
+    // Measure the gain difference of sin wave with the same frequency as the warped cutoff
     // input and output from the filter
     //Check that the output is within half a dB of the input
     SECTION("Peak Level At Center Frequency") {
@@ -193,72 +210,63 @@ void testBandpassResponse(FilterTestContext<Ts...>& testContext) {
 //TODO: Add the capability to test various q values and verify the rolloff rate
 template<typename... Ts>
 void testBandrejectResponse(FilterTestContext<Ts...>& testContext) {
-    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize;
+    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize/2;
 
     const auto cutoff  = DigitalFrequency{testContext.cutoff};
+
+    const auto centerBinIndex = (cutoff.count() / testContext.sampleRate) * FFTSize;
 
     const auto filterSpectrum = getFilteredSpectrum(testContext.fft,
                                                     testContext.noiseBuffer,
                                                     testContext.filter);
 
     SECTION("Spectrum Shape") {
-        //Get the bin that holds the cutoff frequency
-        const auto centerBinIndex = (cutoff.count()/testContext.sampleRate)*FFTSize/2;
-        //From the bottom of the spectrum to the cutoff frequency, check to make sure:
-        // That the output is quieter than the input
-        // That the output spectrum increases as frequency increases
-        for (int i = 0; i < centerBinIndex; ++i) {
-            const Amplitude<float> noiseLevel = testContext.noiseSpectrum[i].getAverage();
-            const Amplitude<float> filteredLevel = filterSpectrum[i].getAverage();
-            REQUIRE((WithinDecibels<float>(filteredLevel,
-                                           testContext.tolerance)
-                             .match(Decibel<float>(noiseLevel))
-                     || noiseLevel > filteredLevel));
-            if(i > 0) {
-                const auto currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
-                const auto previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
-                REQUIRE((WithinDecibels<float>(previousBinLevel,
-                                               testContext.tolerance)
-                                 .match(Decibel(currentBinLevel))
-                         || ResidualDecibels<float>(Decibel(currentBinLevel), -120.0_dB)
-                                 .match(Decibel(previousBinLevel))
-                         || Decibel(currentBinLevel) < Decibel(previousBinLevel)));
-            }
-        }
+        for (auto i = 0; i < FFTSize/2; ++i) {
+            const Decibel<double> noiseLevel    = Amplitude{testContext.noiseSpectrum[i].getAverage()};
+            const Decibel<double> filteredLevel = Amplitude{filterSpectrum[i].getAverage()};
 
-        //From the cutoff frequency to the top of the spectrum, check to make sure:
-        // That the output is quieter than the input
-        // That the output spectrum decreases as frequency increases
-        for (int i = centerBinIndex; i < (20000.0/testContext.sampleRate)*FFTSize/2; ++i) {
-            const Amplitude<float> noiseLevel = testContext.noiseSpectrum[i].getAverage();
-            const Amplitude<float> filteredLevel = filterSpectrum[i].getAverage();
-            REQUIRE((WithinDecibels<float>(filteredLevel,
-                                           testContext.tolerance)
-                             .match(Decibel<float>(noiseLevel))
-                     || noiseLevel > filteredLevel));
+            const auto outputSameOrQuieter = isSameOr<GainChange::Quieter>(noiseLevel,
+                                                                           filteredLevel,
+                                                                           testContext.tolerance);
+            const auto differenceVeryQuiet = ResidualDecibels<float>(noiseLevel,
+                                                                     -120.0_dB)
+                    .match(filteredLevel);
 
-            if(i-1 > centerBinIndex) {
-                const auto currentBinLevel = Amplitude{filterSpectrum[i].getAverage()};
-                const auto previousBinLevel = Amplitude{filterSpectrum[i - 1].getAverage()};
+            REQUIRE((outputSameOrQuieter || differenceVeryQuiet));
 
-                REQUIRE((WithinDecibels<float>(previousBinLevel,
-                                               testContext.tolerance)
-                                 .match(Decibel(currentBinLevel))
-                         || ResidualDecibels<float>(Decibel(currentBinLevel), -120.0_dB)
-                                 .match(Decibel(previousBinLevel))
-                         || Decibel(currentBinLevel) > Decibel(previousBinLevel)));
+            if (i > 0) {
+                const Decibel<double> currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
+                const Decibel<double> previousBinLevel = Amplitude{filterSpectrum[i - 1].getAverage()};
+
+                const auto binDifferenceVeryQuiet = ResidualDecibels<float>(currentBinLevel,
+                                                                            -120.0_dB)
+                                                    .match(previousBinLevel);
+
+                if (i <= centerBinIndex) {
+                    const auto currentBinSameOrQuieter = isSameOr<GainChange::Quieter>(currentBinLevel,
+                                                                                       previousBinLevel,
+                                                                                       testContext.tolerance);
+                    REQUIRE((currentBinSameOrQuieter || binDifferenceVeryQuiet));
+                }
+                //Make sure last two bins are on the same side of the notch
+                else if (i-1 >= centerBinIndex) {
+                    const auto currentBinSameOrLouder = isSameOr<GainChange::Louder>(currentBinLevel,
+                                                                                     previousBinLevel,
+                                                                                     testContext.tolerance);
+                    REQUIRE((currentBinSameOrLouder || binDifferenceVeryQuiet));
+                }
             }
         }
     }
 
-    // Measure the gain difference of sin wave with the same frequncy as the warped cutoff
+    // Measure the gain difference of sin wave with the same frequency as the warped cutoff
     // input and output from the filter
     // Check that the difference is lower than -48dB
     // This number can go lower if you run more iterations on the aver
     SECTION("Peak Level At Center Frequency") {
         REQUIRE(calculateLevelReductionAtFrequency(testContext.filter,
-                                                        cutoff.count(),
-                                                        testContext.sampleRate)
+                                                   cutoff.count(),
+                                                   testContext.sampleRate)
                 < -48.0_dB);
     }
 }
@@ -284,54 +292,55 @@ void testAllpassResponse(FilterTestContext<Ts...>& testContext)
 template<typename... Ts>
 void testPeakResponse(FilterTestContext<Ts...>& testContext)
 {
-    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize;
+    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize/2;
 
     const auto cutoff  = DigitalFrequency{testContext.cutoff};
+
+    const auto centerBinIndex = (cutoff.count() / testContext.sampleRate) * FFTSize;
 
     const auto filterSpectrum = getFilteredSpectrum(testContext.fft,
                                                     testContext.noiseBuffer,
                                                     testContext.filter);
 
     SECTION("Spectrum Shape") {
-        for (auto i = 0; i < (cutoff.count()/testContext.sampleRate)*FFTSize/2; ++i) {
-            const Amplitude<float> noiseLevel = testContext.noiseSpectrum[i].getAverage();
-            const Amplitude<float> filteredLevel = filterSpectrum[i].getAverage();
-            REQUIRE((WithinDecibels<float>(filteredLevel,
-                                           testContext.tolerance)
-                             .match(Decibel<float>(noiseLevel))
-                     || noiseLevel < filteredLevel));
-            if(i > 0) {
+        for (auto i = 0; i < FFTSize/2; ++i) {
+            const Decibel<double> noiseLevel    = Amplitude{testContext.noiseSpectrum[i].getAverage()};
+            const Decibel<double> filteredLevel = Amplitude{filterSpectrum[i].getAverage()};
+
+            const auto outputSameOrQuieter = isSameOr<GainChange::Quieter>(noiseLevel,
+                                                                           filteredLevel,
+                                                                           testContext.tolerance);
+            const auto differenceVeryQuiet = ResidualDecibels<float>(noiseLevel,
+                                                                     -120.0_dB)
+                    .match(filteredLevel);
+
+            REQUIRE((outputSameOrQuieter || differenceVeryQuiet));
+
+            if (i > 0) {
+                const Decibel<double> currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
+                const Decibel<double> previousBinLevel = Amplitude{filterSpectrum[i - 1].getAverage()};
+
+                const auto binDifferenceVeryQuiet = ResidualDecibels<float>(currentBinLevel,
+                                                                            -120.0_dB)
+                        .match(previousBinLevel);
+
                 //TODO: rewrite this section so that negative gains pass
-                const auto currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
-                const auto previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
-                REQUIRE((WithinDecibels<float>(previousBinLevel,
-                                               testContext.tolerance)
-                                 .match(Decibel(currentBinLevel))
-                         || ResidualDecibels<float>(Decibel(currentBinLevel), -120.0_dB)
-                                 .match(Decibel(previousBinLevel))
-                         || Decibel(currentBinLevel) > Decibel(previousBinLevel)));
+
+                if (i < centerBinIndex) {
+                    const auto currentBinSameOrLouder = isSameOr<GainChange::Louder>(currentBinLevel,
+                                                                                     previousBinLevel,
+                                                                                     testContext.tolerance);
+                    REQUIRE((currentBinSameOrLouder || binDifferenceVeryQuiet));
+                }
+                else {
+                    const auto currentBinSameOrQuieter = isSameOr<GainChange::Quieter>(currentBinLevel,
+                                                                                       previousBinLevel,
+                                                                                       testContext.tolerance);
+                    REQUIRE((currentBinSameOrQuieter || binDifferenceVeryQuiet));
+                }
             }
         }
-
-        for (auto i = (cutoff.count()/testContext.sampleRate); i < FFTSize/2; ++i) {
-            const Amplitude<float> noiseLevel = testContext.noiseSpectrum[i].getAverage();
-            const Amplitude<float> filteredLevel = filterSpectrum[i].getAverage();
-            REQUIRE((WithinDecibels<float>(filteredLevel,
-                                           testContext.tolerance)
-                             .match(Decibel<float>(noiseLevel))
-                     || noiseLevel < filteredLevel));
-
-            const auto currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
-            const auto previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
-            REQUIRE((WithinDecibels<float>(previousBinLevel,
-                                           testContext.tolerance)
-                             .match(Decibel(currentBinLevel))
-                     || ResidualDecibels<float>(Decibel(currentBinLevel), -120.0_dB)
-                             .match(Decibel(previousBinLevel))
-                     || Decibel(currentBinLevel) < Decibel(previousBinLevel)));
-        }
     }
-
 
     SECTION("Peak Level At Center Frequency") {
         const auto levelDifference = calculateLevelReductionAtFrequency(testContext.filter,
@@ -341,4 +350,91 @@ void testPeakResponse(FilterTestContext<Ts...>& testContext)
     }
 }
 
-//TODO: Add Shelving response tests
+//Shelf level increase should be the sqrt of the gain
+
+template<typename... Ts>
+void testLowShelfResponse(FilterTestContext<Ts...>& testContext)
+{
+    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize/2;
+
+    const auto cutoff  = DigitalFrequency{testContext.cutoff};
+
+    const auto filterSpectrum = getFilteredSpectrum(testContext.fft,
+                                                    testContext.noiseBuffer,
+                                                    testContext.filter);
+
+    SECTION("Spectrum Shape") {
+        for (auto i = 1; i < FFTSize; ++i) {
+                //After the first bin:
+                //Check that the current bin is either the same level or quieter than the previous
+                //Or that the difference between them is below the threshold of hearing
+                const Decibel<double> currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
+                const Decibel<double> previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
+
+            const auto outputSameOrQuieter = isSameOr<GainChange::Quieter>(currentBinLevel,
+                                                                         previousBinLevel,
+                                                                         testContext.tolerance);
+            const auto differenceVeryQuiet = ResidualDecibels<float>(currentBinLevel,
+                                                                     -120.0_dB)
+                    .match(previousBinLevel);
+
+            REQUIRE((outputSameOrQuieter || differenceVeryQuiet));
+        }
+    }
+
+
+    SECTION("Peak Level At Center Frequency") {
+        if(testContext.cutoff < testContext.sampleRate/4.01) {
+            const auto levelDifference = calculateLevelReductionAtFrequency(testContext.filter,
+                                                                            cutoff.count(),
+                                                                            testContext.sampleRate);
+            REQUIRE_THAT(levelDifference,
+                         WithinDecibels(Decibel{Amplitude{std::sqrt(testContext.filterGain)}}, Decibel{.75}));
+        }
+    }
+}
+
+template<typename... Ts>
+void testHighShelfResponse(FilterTestContext<Ts...>& testContext)
+{
+    constexpr auto FFTSize = FilterTestContext<Ts...>::SpectrumSize/2;
+
+    const auto cutoff  = DigitalFrequency{testContext.cutoff};
+
+    const auto filterSpectrum = getFilteredSpectrum(testContext.fft,
+                                                    testContext.noiseBuffer,
+                                                    testContext.filter);
+
+    SECTION("Spectrum Shape") {
+        //Gain seems to become inaccurate around a quarter of the sampling rate, so only measure up to that pout
+        for (auto i = 1; i < FFTSize/2; ++i) {
+                //After the first bin:
+                //Check that the current bin is either the same level or quieter than the previous
+                //Or that the difference between them is below the threshold of hearing
+                const Decibel<double> currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
+                const Decibel<double> previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
+
+                const auto outputSameOrLouder = isSameOr<GainChange::Louder>(currentBinLevel,
+                                                                             previousBinLevel,
+                                                                             testContext.tolerance);
+                const auto differenceVeryQuiet = ResidualDecibels<float>(currentBinLevel,
+                                                                         -120.0_dB)
+                                                 .match(previousBinLevel);
+
+                REQUIRE((outputSameOrLouder || differenceVeryQuiet));
+        }
+    }
+
+
+    SECTION("Peak Level At Center Frequency") {
+        //Shelf gain becomes unstable at about 1/4th the sampling rate-
+        // let's only run the test inside the expected bounds
+        if(testContext.cutoff < testContext.sampleRate/4.0) {
+            const auto levelDifference = calculateLevelReductionAtFrequency(testContext.filter,
+                                                                            cutoff.count(),
+                                                                            testContext.sampleRate);
+            const Decibel<double> referenceGain = Amplitude{std::sqrt(testContext.filterGain)};
+            REQUIRE_THAT(levelDifference, WithinDecibels(referenceGain, Decibel{.75}));
+        }
+    }
+}
