@@ -23,10 +23,12 @@ TEST_CASE ("DC Response", "[FFT]") {
 //Test that the largest bin in the fft, when given a sin input, is the sin frequency
 TEST_CASE ("Sin Response", "[FFT]")
 {
-    static constexpr size_t fftSize = 1024;
-    FFTHelper<float, fftSize> fft;
-    static constexpr size_t ratio = 32;
-    static constexpr double sampleRate = 44100.0, frequency = sampleRate/ratio, phaseIncrement = frequency/sampleRate;
+    static constexpr size_t FFTSize = 1024;
+    FFTHelper<float, FFTSize> fft;
+    const double sampleRate = 44100.0;
+    const size_t currentBin = GENERATE(0, FFTSize);
+    const double frequency = currentBin*(sampleRate/FFTSize);
+    const double phaseIncrement = frequency/sampleRate;
     double phase = 0.0;
 
     for(auto i = 0; i < numIterations; ++i) {
@@ -38,7 +40,7 @@ TEST_CASE ("Sin Response", "[FFT]")
     const auto& fftData = fft.getFFTData();
     const auto largestBin = std::distance(fftData.begin(), std::max_element(fftData.begin(), fftData.end()));
     //The largest bin should be the bin that contains our sin wave
-    REQUIRE(largestBin*sampleRate/fftSize == frequency);
+    REQUIRE(largestBin == currentBin%(FFTSize/2));
     //The bins adjacent should roll off a certain amount
     const auto threshold = Decibel(-3.0f);
 
