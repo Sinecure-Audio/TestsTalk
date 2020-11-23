@@ -114,8 +114,6 @@ TEST_CASE("Test BandReject Frequency Response", "[Filter]") {
     testBandrejectResponse(testContext);
 }
 
-
-//TODO: Find out why the allpass filter sometimes resets the coefficients to 0
 TEST_CASE("Test Allpass Frequency Response", "[Filter]") {
     static constexpr size_t FFTSize = 1024;
 
@@ -158,8 +156,7 @@ TEST_CASE("Test Peak Frequency Response", "[Filter]") {
     using FilterType = juce::dsp::IIR::Filter<double>;
 
     //Generate 4 random values for the gain (don't wanna make the tests TOO long...)
-    //TODO: after making cut spectrums pass the test, change the lower bound to .1
-    const double gain = GENERATE(take(4, random(1.0, 100.0)));
+    const double gain = GENERATE(take(4, random(0.1, 1.0)));
 
     auto testContext = makeFilterContext<FFTSize,
             FilterResponse::Peak,

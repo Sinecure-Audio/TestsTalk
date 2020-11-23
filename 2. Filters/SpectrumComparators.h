@@ -185,7 +185,7 @@ void testBandpassResponse(FilterTestContext<Ts...>& testContext) {
                                                                                      testContext.tolerance);
                     REQUIRE((currentBinSameOrLouder || binDifferenceVeryQuiet));
                 }
-                else {
+                else if (i-1 >= centerBinIndex) {
                     const auto currentBinSameOrQuieter = isSameOr<GainChange::Quieter>(currentBinLevel,
                                                                                        previousBinLevel,
                                                                                       testContext.tolerance);
@@ -230,7 +230,7 @@ void testBandrejectResponse(FilterTestContext<Ts...>& testContext) {
                                                                            testContext.tolerance);
             const auto differenceVeryQuiet = ResidualDecibels<float>(noiseLevel,
                                                                      -120.0_dB)
-                    .match(filteredLevel);
+                                             .match(filteredLevel);
 
             REQUIRE((outputSameOrQuieter || differenceVeryQuiet));
 
@@ -312,7 +312,7 @@ void testPeakResponse(FilterTestContext<Ts...>& testContext)
                                                                            testContext.tolerance);
             const auto differenceVeryQuiet = ResidualDecibels<float>(noiseLevel,
                                                                      -120.0_dB)
-                    .match(filteredLevel);
+                                             .match(filteredLevel);
 
             REQUIRE((outputSameOrQuieter || differenceVeryQuiet));
 
@@ -322,19 +322,21 @@ void testPeakResponse(FilterTestContext<Ts...>& testContext)
 
                 const auto binDifferenceVeryQuiet = ResidualDecibels<float>(currentBinLevel,
                                                                             -120.0_dB)
-                        .match(previousBinLevel);
+                                                    .match(previousBinLevel);
 
                 //TODO: rewrite this section so that negative gains pass
 
+                const auto level1 = testContext.filterGain >= 1.0 ? currentBinLevel : previousBinLevel;
+                const auto level2 = testContext.filterGain >= 1.0 ? previousBinLevel : currentBinLevel;
                 if (i < centerBinIndex) {
-                    const auto currentBinSameOrLouder = isSameOr<GainChange::Louder>(currentBinLevel,
-                                                                                     previousBinLevel,
+                    const auto currentBinSameOrLouder = isSameOr<GainChange::Louder>(level1,
+                                                                                     level2,
                                                                                      testContext.tolerance);
                     REQUIRE((currentBinSameOrLouder || binDifferenceVeryQuiet));
                 }
-                else {
-                    const auto currentBinSameOrQuieter = isSameOr<GainChange::Quieter>(currentBinLevel,
-                                                                                       previousBinLevel,
+                else if (i-1 >= centerBinIndex) {
+                    const auto currentBinSameOrQuieter = isSameOr<GainChange::Quieter>(level1,
+                                                                                       level2,
                                                                                        testContext.tolerance);
                     REQUIRE((currentBinSameOrQuieter || binDifferenceVeryQuiet));
                 }
@@ -376,7 +378,7 @@ void testLowShelfResponse(FilterTestContext<Ts...>& testContext)
                                                                          testContext.tolerance);
             const auto differenceVeryQuiet = ResidualDecibels<float>(currentBinLevel,
                                                                      -120.0_dB)
-                    .match(previousBinLevel);
+                                             .match(previousBinLevel);
 
             REQUIRE((outputSameOrQuieter || differenceVeryQuiet));
         }
