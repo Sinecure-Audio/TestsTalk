@@ -7,15 +7,21 @@
 #include "../Utilities/Random.h"
 #include "../Utilities/Lerp.h"
 
+//Set the number of times each test is run
 constexpr size_t numIterations = 100000;
-//This is turned down to incite errors. Use this to see which lines the test reposrts as failing.
-// If it does so well, consider refactoring the tests to use a common run oscillator test function
-const auto residualThreshold = Decibel<double>(-120.0);
-const auto tolerance = Decibel<double>(.5);
 
-using TestType = double;
+//A value we use to determine whether the difference between two signals is small enough to be acceptable
+template<typename T>
+const auto residualThreshold = Decibel<T>{T{-120}};
+template<typename T>
+const auto tolerance = Decibel<T>{T{.5}};
 
-TEST_CASE("Perform Phasor", "[Phasor]") {
+//TODO: Add tests that change freq and SR on the fly,
+// checking to make sure behavior remains correct-
+// the changes to the perform function will cause incorrect results in these cases
+
+TEMPLATE_TEST_CASE("Perform Phasor", "[Phasor]", float, double) {
+    //TODO: add edge check to all phasor tests
     SECTION("Perform Phasor") {
         constexpr TestType oscillatorFrequency = 440.0;
         constexpr TestType sampleRate = 44100.0;
@@ -24,10 +30,18 @@ TEST_CASE("Perform Phasor", "[Phasor]") {
         phasor.setFrequency(oscillatorFrequency);
         phasor.setSampleRate(sampleRate);
 
+        const auto phaseIncrement = oscillatorFrequency/sampleRate;
+
         for (auto i = 0; i < numIterations; ++i) {
-            const auto phasorReference = i*oscillatorFrequency/ sampleRate;
-            REQUIRE_THAT(Decibel<TestType>::convertAmplitudeToDecibel(phasor.perform()),
-                         ResidualDecibels<TestType>(phasorReference, residualThreshold));
+            const auto phasorReference = std::fmod(i*phaseIncrement, 1.0);
+            const auto phasorOutput = phasor.perform();
+
+            const auto levelsClose = ResidualDecibels<TestType>(phasorReference, residualThreshold<TestType>).match(Decibel<TestType>{Amplitude{phasorOutput}});
+            const auto atTransition = closeToEdge({phasorOutput, phasorReference}, TestType{0}, TestType{1});
+            const auto testPasses = levelsClose || atTransition;
+//            CHECK_THAT(Decibel<TestType>{Amplitude{phasorOutput}},
+//                         ResidualDecibels<TestType>(phasorReference, residualThreshold<TestType>));
+            CHECK((testPasses));
         }
     }
 
@@ -39,10 +53,19 @@ TEST_CASE("Perform Phasor", "[Phasor]") {
         phasor.setFrequency(oscillatorFrequency);
         phasor.setSampleRate(sampleRate);
 
+        const auto phaseIncrement = oscillatorFrequency/sampleRate;
+
         for (auto i = 0; i < numIterations; ++i) {
-            const auto phasorReference = i*oscillatorFrequency/ sampleRate;
-            REQUIRE_THAT(Decibel<TestType>::convertAmplitudeToDecibel(phasor.perform()),
-                         ResidualDecibels<TestType>(phasorReference, residualThreshold));
+            const auto phasorReference = std::fmod(i*phaseIncrement, 1.0);
+            const auto phasorOutput = phasor.perform();
+
+            const auto levelsClose = ResidualDecibels<TestType>(phasorReference, residualThreshold<TestType>).match(Decibel<TestType>{Amplitude{phasorOutput}});
+            const auto atTransition = closeToEdge({phasorOutput, phasorReference}, TestType{0}, TestType{1});
+            const auto testPasses = levelsClose || atTransition;
+
+            CHECK(testPasses);
+//            CHECK_THAT(Decibel{Amplitude{phasorOutput}},
+//                         ResidualDecibels<TestType>(phasorReference, residualThreshold<TestType>));
         }
     }
 
@@ -54,10 +77,18 @@ TEST_CASE("Perform Phasor", "[Phasor]") {
         phasor.setFrequency(oscillatorFrequency);
         phasor.setSampleRate(sampleRate);
 
+        const auto phaseIncrement = oscillatorFrequency/sampleRate;
+
         for (auto i = 0; i < numIterations; ++i) {
-            const auto phasorReference = std::fmod(i*oscillatorFrequency/ sampleRate, 1.0);
-            const auto oscOutput = Decibel<TestType>::convertAmplitudeToDecibel(phasor.perform());
-            REQUIRE_THAT(oscOutput,ResidualDecibels<TestType>(phasorReference, tolerance));
+            const auto phasorReference = std::fmod(i*phaseIncrement, 1.0);
+            const auto phasorOutput = phasor.perform();
+
+            const auto levelsClose = ResidualDecibels<TestType>(phasorReference, residualThreshold<TestType>).match(Decibel<TestType>{Amplitude{phasorOutput}});
+            const auto atTransition = closeToEdge({phasorOutput, phasorReference}, TestType{0}, TestType{1});
+            const auto testPasses = levelsClose || atTransition;
+
+            CHECK(testPasses);
+//            CHECK_THAT(Decibel{Amplitude{phasorOutput}},ResidualDecibels<TestType>(phasorReference, tolerance<TestType>));
         }
     }
 
@@ -76,9 +107,10 @@ TEST_CASE("Perform Phasor", "[Phasor]") {
             //If we should sync the oscillator, let's sync it and test the output
             if(i%mod) {
                 const auto rand = getBoundedRandom(0.0, 1.0);
-                const auto output = phasor.perform(rand);
-                REQUIRE_THAT(output,
-                             Catch::WithinRel(std::fmod(i*(oscillatorFrequency/sampleRate), TestType{1})));
+                const auto phasorOutput = phasor.perform(rand);
+                CHECK_THAT(Decibel{Amplitude{phasorOutput}},ResidualDecibels<TestType>(rand, tolerance<TestType>));
+//                CHECK_THAT(phasorOutput,
+//                             Catch::WithinRel(std::fmod(i*(oscillatorFrequency/sampleRate), TestType{1})));
             }
                 //Otherwise, just perform the oscillator
             else
@@ -87,7 +119,7 @@ TEST_CASE("Perform Phasor", "[Phasor]") {
     }
 }
 
-TEST_CASE("Perform Oscillator", "[Oscillator]") {
+TEMPLATE_TEST_CASE("Perform Oscillator", "[Oscillator]", float, double) {
     SECTION("Perform Sin Oscillator") {
         constexpr TestType oscillatorFrequency = 440.0;
         constexpr TestType sampleRate = 44100.0;
@@ -96,18 +128,18 @@ TEST_CASE("Perform Oscillator", "[Oscillator]") {
         oscillator.setFrequency(oscillatorFrequency);
         oscillator.setSampleRate(sampleRate);
 
+        const auto phaseIncrement = oscillatorFrequency/sampleRate;
+
         for (auto i = 0; i < numIterations; ++i) {
-            const auto angleInRadians = oscillatorFrequency
-                                        * i
-                                        / sampleRate;
+            const auto phaseReference = std::fmod(i, TestType{1}/phaseIncrement)*phaseIncrement;
 
             const auto oscOut = oscillator.perform();
             const Decibel<TestType> oscillatorLevel = Amplitude{oscOut};
-            const auto reference = std::fmod(angleInRadians, TestType{1});
+            const auto reference = std::fmod(phaseReference, TestType{1});
             const Decibel<TestType> referenceLevel = Amplitude{reference};
 
 
-            REQUIRE((ResidualDecibels<TestType>(referenceLevel, residualThreshold).match(oscillatorLevel)
+            CHECK((ResidualDecibels<TestType>(referenceLevel, residualThreshold<TestType>).match(oscillatorLevel)
                     || closeToEdge({oscOut, reference}, TestType{0}, TestType{1})));
         }
     }
@@ -120,15 +152,15 @@ TEST_CASE("Perform Oscillator", "[Oscillator]") {
         oscillator.setFrequency(oscillatorFrequency);
         oscillator.setSampleRate(sampleRate);
 
+        const auto phaseIncrement = oscillatorFrequency/sampleRate;
+
         for (auto i = 0; i < numIterations; ++i) {
-            const auto angleInRadians = oscillatorFrequency
-                                        * i
-                                        / sampleRate;
+            const auto phaseReference = std::fmod(i, TestType{1}/phaseIncrement)*phaseIncrement;
             const auto oscOutput = oscillator.perform();
             const Decibel<TestType> oscLevel = Amplitude{oscOutput};
-            const auto ref = std::fmod(angleInRadians, TestType{1});
+            const auto ref = std::fmod(phaseReference, TestType{1});
 
-            REQUIRE((ResidualDecibels<TestType>(ref, residualThreshold).match(oscLevel)
+            CHECK((ResidualDecibels<TestType>(ref, residualThreshold<TestType>).match(oscLevel)
                   || closeToEdge({oscOutput, ref}, TestType{0}, TestType{1})));
         }
     }
@@ -141,15 +173,15 @@ TEST_CASE("Perform Oscillator", "[Oscillator]") {
         oscillator.setFrequency(oscillatorFrequency);
         oscillator.setSampleRate(sampleRate);
 
+        const auto phaseIncrement = oscillatorFrequency/sampleRate;
+
         for (auto i = 0; i < numIterations; ++i) {
-            const auto angleInRadians = oscillatorFrequency
-                                        * i
-                                        / sampleRate;
+            const auto phaseReference = std::fmod(i, TestType{1}/phaseIncrement)*phaseIncrement;
             const Decibel<TestType> oscOutput = Amplitude{oscillator.perform()};
 
-            REQUIRE_THAT(oscOutput,
-                         ResidualDecibels<TestType>(std::fmod(angleInRadians, TestType{1}),
-                                                            residualThreshold));
+            CHECK_THAT(oscOutput,
+                         ResidualDecibels<TestType>(std::fmod(phaseReference, TestType{1}),
+                                                            residualThreshold<TestType>));
         }
     }
 
@@ -169,7 +201,7 @@ TEST_CASE("Perform Oscillator", "[Oscillator]") {
             if(i%mod) {
                 const auto rand = getBoundedRandom(TestType{0}, TestType{1});
                 const auto output = oscillator.perform(rand);
-                REQUIRE_THAT(output,
+                CHECK_THAT(output,
                              Catch::WithinRel(rand));
             }
                 //Otherwise, just perform the oscillator
@@ -179,24 +211,27 @@ TEST_CASE("Perform Oscillator", "[Oscillator]") {
     }
 }
 
-TEST_CASE("Oscillator Waveforms" "[Oscillator]") {
+TEMPLATE_TEST_CASE("Oscillator Waveforms", "[Oscillator]", float, double) {
+
     SECTION("Change Wavetables") {
         Oscillator<TestType> osc{};
         osc.setWaveform(std::make_unique<SinShaper<TestType>>());
-        REQUIRE(dynamic_cast<SinShaper<TestType>*>(osc.getWaveform().get()));
+        CHECK(dynamic_cast<SinShaper<TestType>*>(osc.getWaveform().get()));
         osc.setWaveform(std::make_unique<Shaper<TestType>>());
-        REQUIRE(dynamic_cast<Shaper<TestType>*>(osc.getWaveform().get()));
+        CHECK(dynamic_cast<Shaper<TestType>*>(osc.getWaveform().get()));
     }
 
     SECTION("Test Basic Waveforms") {
-        //
         const TestType oscillatorFrequency = GENERATE(take(100, random(0.0, 20000.0)));
-        auto sampleRate = GENERATE(TestType{44100},
+        const auto sampleRate = GENERATE(TestType{44100},
                                    TestType{48000},
                                    TestType{88200},
                                    TestType{96000},
                                    TestType{176400},
                                    TestType{192000});
+
+        const auto phaseIncrement = oscillatorFrequency/sampleRate;
+        const auto iterationsPerCycle = TestType{1}/phaseIncrement;
 
         SECTION("Perform Sin Wave") {
             Oscillator<TestType> osc{};
@@ -206,14 +241,13 @@ TEST_CASE("Oscillator Waveforms" "[Oscillator]") {
 
 
             for (auto i = 0; i < numIterations; ++i) {
-                const auto angleInRadians = oscillatorFrequency
-                                            * i
-                                            * juce::MathConstants<TestType>::twoPi
-                                            / sampleRate;
-                const auto oscOutput = Decibel<TestType>::convertAmplitudeToDecibel(osc.perform());
+                const TestType phaseReference = std::fmod(i, iterationsPerCycle)*phaseIncrement;
+                const auto angleInRadians = phaseReference * juce::MathConstants<TestType>::twoPi;
+                const auto oscOutput = osc.perform();
+                const Decibel<TestType> oscLevel = Amplitude{oscOutput};
 
-                REQUIRE_THAT(oscOutput,
-                             ResidualDecibels<TestType>(std::sin(angleInRadians), residualThreshold));
+                CHECK_THAT(oscLevel,
+                             ResidualDecibels<TestType>(std::sin(angleInRadians), residualThreshold<TestType>));
             }
         }
 
@@ -224,24 +258,24 @@ TEST_CASE("Oscillator Waveforms" "[Oscillator]") {
             osc.setSampleRate(sampleRate);
 
             for (auto i = 0; i < numIterations; ++i) {
-                const TestType referencePhase = std::fmod(i * oscillatorFrequency / sampleRate, TestType{1});
-                if (referencePhase < TestType{.25}) {
-                    REQUIRE_THAT(osc.perform(),
+                const TestType phaseReference = std::fmod(i, iterationsPerCycle)*phaseIncrement;
+                if (phaseReference < TestType{.25}) {
+                    CHECK_THAT(osc.perform(),
                                  Catch::WithinAbs(lerp(TestType{0},
                                                        TestType{1},
-                                                       referencePhase * TestType{4}),
+                                                       phaseReference * TestType{4}),
                                                   TestType{.000001}));
-                } else if (referencePhase < TestType{.75}) {
-                    REQUIRE_THAT(osc.perform(),
+                } else if (phaseReference < TestType{.75}) {
+                    CHECK_THAT(osc.perform(),
                                  Catch::WithinAbs(lerp(TestType{1},
                                                        TestType{-1},
-                                                       (referencePhase - TestType{.25}) * TestType{2}),
+                                                       (phaseReference - TestType{.25}) * TestType{2}),
                                                   TestType{.000001}));
                 } else {
-                    REQUIRE_THAT(osc.perform(),
+                    CHECK_THAT(osc.perform(),
                                  Catch::WithinAbs(lerp(TestType{-1},
                                                        TestType{0},
-                                                       (referencePhase - TestType{.75}) * TestType{4}),
+                                                       (phaseReference - TestType{.75}) * TestType{4}),
                                                   TestType{.000001}));
                 }
             }
@@ -254,14 +288,13 @@ TEST_CASE("Oscillator Waveforms" "[Oscillator]") {
             osc.setSampleRate(sampleRate);
 
             for (auto i = 0; i < numIterations; ++i) {
-                const auto expectHigh = std::fmod(i * oscillatorFrequency / sampleRate, TestType{1})
-                                        >= TestType{.5};
-                const auto reference = expectHigh ? TestType{1} : TestType{-1};
+                const TestType phaseReference = std::fmod(i, iterationsPerCycle)*phaseIncrement;
+                const auto isHigh = phaseReference >= TestType{.5};
+                const auto reference = isHigh ? TestType{1} : TestType{-1};
                 const auto oscOut = osc.perform();
 
                 //Test if our reference matches the output of the oscillator, or if they are close
-                //TODO: Consider only using the output of close to edge if the phase is close to 0 or .5
-                REQUIRE((Catch::WithinRel(reference).match(oscOut)
+                CHECK((Catch::WithinRel(reference).match(oscOut)
                          || closeToEdge({oscOut, reference}, TestType{-1}, TestType{1})));
             }
         }
@@ -273,14 +306,18 @@ TEST_CASE("Oscillator Waveforms" "[Oscillator]") {
             osc.setSampleRate(sampleRate);
 
             for (auto i = 0; i < numIterations; ++i) {
-                const auto lerpIndex = std::fmod(i * oscillatorFrequency / sampleRate, TestType{1});
+                const TestType phaseReference = std::fmod(i, iterationsPerCycle)*phaseIncrement;
                 const auto oscOut = Amplitude{osc.perform()};
-                const auto ref = lerp(TestType{-1}, TestType{1}, lerpIndex);
+                const auto ref = lerp(TestType{-1}, TestType{1}, phaseReference);
 
+                const auto a = WithinDecibels<TestType>(ref, tolerance<TestType>).match(oscOut);
+                const auto b = closeToEdge({oscOut, ref}, TestType{-1}, TestType{1});
+                if(!(a||b))
+                    auto x = 2;
                 //Check that the sawtooth is correctly between -1 and 1,
                 // or that the oscillator and reference are very close to a phase of 0
-                REQUIRE((WithinDecibels<TestType>(ref, tolerance).match(oscOut)
-                         || closeToEdge({oscOut.count(), ref}, TestType{-1}, TestType{1})));
+                CHECK((WithinDecibels<TestType>(ref, tolerance<TestType>).match(oscOut)
+                    || closeToEdge({oscOut, ref}, TestType{-1}, TestType{1})));
             }
         }
     }

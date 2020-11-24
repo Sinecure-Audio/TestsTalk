@@ -1,8 +1,7 @@
 #pragma once
 
+//Include fmod and size_t
 #include <cmath>
-
-#include <juce_core/juce_core.h>
 
 // A phasor class for driving an oscillator.
 // This outputs a signal from 0-1 periodically according to a frequency and sample rate.
@@ -13,17 +12,26 @@ public:
     void setSampleRate(SampleType newPerformRate) noexcept {
         sampleRate = newPerformRate;
         phaseVelocity = frequency/sampleRate;
+        iterationsPerCycle = SampleType{1}/phaseVelocity;
+        internalPhase = std::fmod(internalPhase+getPhaseFromIndex(counter), SampleType{1});
     }
 
-    void reset() noexcept { correctionTerm = phase = SampleType{0};}
+    void reset() noexcept {
+        counter = 0;
+        internalPhase = phase = SampleType{0};
+    }
 
     void setFrequency(const SampleType& newFrequency) noexcept {
         frequency = newFrequency;
         phaseVelocity = frequency/sampleRate;
+        iterationsPerCycle = SampleType{1}/phaseVelocity;
+        internalPhase = std::fmod(internalPhase+getPhaseFromIndex(counter), SampleType{1});
     }
 
     void setPhase(const SampleType& newPhase) noexcept {
         phase = std::fmod(newPhase, SampleType{1});
+        counter = 0;
+        internalPhase = SampleType{0};
     }
 
     //Set the phase, and then increment the phase value, and then wrap it between 0 and 1
@@ -34,23 +42,19 @@ public:
 
     //Increment the phase value, and then wrap it between 0 and 1
     SampleType perform() noexcept {
-        const auto output = phase;
-        phase = std::fmod(kahanSummation(), SampleType{1});
-        return output;
+        return std::fmod(phase+getPhaseFromIndex(counter++), SampleType{1});
     }
 
 private:
-    SampleType phase{0}, frequency{0}, sampleRate{0},
-            phaseVelocity{0}, correctionTerm{0};
+    SampleType phase{0}, frequency{0}, sampleRate{44100},
+            phaseVelocity{0}, internalPhase{0};
 
-    // Performs kahan summation on the phase value
-    // this keeps the error of the phase value lower than by just using +=
-    // Needed to pass the triangle waveform test,
-    // but all of the oscillator tests will require it if the number of iterations are increased
-    auto kahanSummation() noexcept {
-        const auto y = phaseVelocity-correctionTerm;
-        const auto t = phase+y;
-        correctionTerm = (t-phase)-y;
-        return t;
+    size_t counter {0};
+    SampleType iterationsPerCycle{0};
+
+    constexpr auto getPhaseFromIndex(size_t index) const noexcept {
+        return std::fmod(index, iterationsPerCycle)*phaseVelocity;
     }
+
+
 };
