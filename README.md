@@ -7,4 +7,4 @@ The tests also use my units library as a submodule, which requires you to run `g
 
 You can build the tests by making a build directory and calling `cmake "THIS_DIRECTORY" -D"JUCE_PATH"`, where `THIS_DIRECTORY` is the directory of the repo, and `JUCE_PATH` is the path to your JUCE folder. It is a good idea to make sure the build directory is not in one of the source code directories of this project.
 
-After building the tests (You can specify different build systems with the `-G` flag in cmake), you can then run the tests by calling `./TestExamples` from your build directory.
+After building the tests (You can specify different build systems with the `-G` flag in cmake), you can then run the tests by calling `ctest` from your build directory. Passing `-j` followed by a number will use that many cores to run the tests in parallel.git sta
