@@ -18,12 +18,12 @@ void testLowpassResponse(FilterTestContext<Ts...>& testContext) {
                                                     testContext.filter);
 
     SECTION("Spectrum Shape") {
-        for (auto i = 0; i < FFTSize/2; ++i) {
+        for (size_t i = 0; i < FFTSize/2; ++i) {
             //From 0 to nyquist, check that:
             //The current bin's is around the same level for both the input and output
             //Or it is quieter for the input
-            const Decibel<double> noiseLevel    = testContext.noiseSpectrum[i].getAverage();
-            const Decibel<double> filteredLevel = filterSpectrum[i].getAverage();
+            const Decibel<double> noiseLevel    = Amplitude{testContext.noiseSpectrum[i].getAverage()};
+            const Decibel<double> filteredLevel = Amplitude{filterSpectrum[i].getAverage()};
 
             const auto outputSameOrQuieter = isSameOr<GainChange::Quieter>(noiseLevel,
                                                                            filteredLevel,
@@ -37,9 +37,9 @@ void testLowpassResponse(FilterTestContext<Ts...>& testContext) {
             if(i > 0) {
                 //After the first bin:
                 //Check that the current bin is either the same level or quieter than the previous
-                //Or that the difference etween them is below the threshold of hearing
-                const Decibel<double> currentBinLevel  = filterSpectrum[i].getAverage();
-                const Decibel<double> previousBinLevel = filterSpectrum[i-1].getAverage();
+                //Or that the difference between them is below the threshold of hearing
+                const Decibel<double> currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
+                const Decibel<double> previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
 
                 const auto currentBinSameOrQuieter = isSameOr<GainChange::Quieter>(currentBinLevel,
                                                                                    previousBinLevel,
@@ -90,9 +90,9 @@ void testHighpassResponse(FilterTestContext<Ts...>& testContext) {
                                                     testContext.filter);
 
     SECTION("Spectrum Shape") {
-        for (auto i = 0; i < FFTSize/2; ++i) {
-            const Decibel<double> noiseLevel = testContext.noiseSpectrum[i].getAverage();
-            const Decibel<double> filteredLevel = filterSpectrum[i].getAverage();
+        for (size_t i = 0; i < FFTSize/2; ++i) {
+            const Decibel<double> noiseLevel    = Amplitude{testContext.noiseSpectrum[i].getAverage()};
+            const Decibel<double> filteredLevel = Amplitude{filterSpectrum[i].getAverage()};
 
             const auto outputSameOrQuieter = isSameOr<GainChange::Quieter>(noiseLevel,
                                                                            filteredLevel,
@@ -104,8 +104,8 @@ void testHighpassResponse(FilterTestContext<Ts...>& testContext) {
             REQUIRE((outputSameOrQuieter || differenceVeryQuiet));
 
             if(i > 0) {
-                const Decibel<double> currentBinLevel = filterSpectrum[i].getAverage();
-                const Decibel<double> previousBinLevel = filterSpectrum[i-1].getAverage();
+                const Decibel<double> currentBinLevel  = Amplitude{filterSpectrum[i].getAverage()};
+                const Decibel<double> previousBinLevel = Amplitude{filterSpectrum[i-1].getAverage()};
 
                 const auto currentBinSameOrLouder = isSameOr<GainChange::Louder>(currentBinLevel,
                                                                                  previousBinLevel,
@@ -158,7 +158,7 @@ void testBandpassResponse(FilterTestContext<Ts...>& testContext) {
                                                     testContext.filter);
 
     SECTION("Spectrum Shape") {
-        for (auto i = 0; i < FFTSize/2; ++i) {
+        for (size_t i = 0; i < FFTSize/2; ++i) {
             const Decibel<double> noiseLevel    = Amplitude{testContext.noiseSpectrum[i].getAverage()};
             const Decibel<double> filteredLevel = Amplitude{filterSpectrum[i].getAverage()};
 
@@ -221,7 +221,7 @@ void testBandrejectResponse(FilterTestContext<Ts...>& testContext) {
                                                     testContext.filter);
 
     SECTION("Spectrum Shape") {
-        for (auto i = 0; i < FFTSize/2; ++i) {
+        for (size_t i = 0; i < FFTSize/2; ++i) {
             const Decibel<double> noiseLevel    = Amplitude{testContext.noiseSpectrum[i].getAverage()};
             const Decibel<double> filteredLevel = Amplitude{filterSpectrum[i].getAverage()};
 
@@ -280,7 +280,7 @@ void testAllpassResponse(FilterTestContext<Ts...>& testContext)
 
     //Check all of the bins in the filtered spectrum against the noise spectrum
     //Require that the difference between the two be inside the tolerance
-    for(auto i = 1; i < testContext.noiseSpectrum.size(); ++i) {
+    for(size_t i = 1; i < testContext.noiseSpectrum.size(); ++i) {
         const Decibel<float> noiseLevel = Amplitude{testContext.noiseSpectrum[i].getAverage()};
         const Decibel<float> filteredLevel = Amplitude{filteredSpectrum[i].getAverage()};
 
@@ -303,7 +303,7 @@ void testPeakResponse(FilterTestContext<Ts...>& testContext)
                                                     testContext.filter);
 
     SECTION("Spectrum Shape") {
-        for (auto i = 0; i < FFTSize/2; ++i) {
+        for (size_t i = 0; i < FFTSize/2; ++i) {
             const Decibel<double> noiseLevel    = Amplitude{testContext.noiseSpectrum[i].getAverage()};
             const Decibel<double> filteredLevel = Amplitude{filterSpectrum[i].getAverage()};
 
@@ -366,7 +366,7 @@ void testLowShelfResponse(FilterTestContext<Ts...>& testContext)
                                                     testContext.filter);
 
     SECTION("Spectrum Shape") {
-        for (auto i = 1; i < FFTSize; ++i) {
+        for (size_t i = 1; i < FFTSize; ++i) {
                 //After the first bin:
                 //Check that the current bin is either the same level or quieter than the previous
                 //Or that the difference between them is below the threshold of hearing
@@ -409,7 +409,7 @@ void testHighShelfResponse(FilterTestContext<Ts...>& testContext)
 
     SECTION("Spectrum Shape") {
         //Gain seems to become inaccurate around a quarter of the sampling rate, so only measure up to that pout
-        for (auto i = 1; i < FFTSize/2; ++i) {
+        for (size_t i = 1; i < FFTSize/2; ++i) {
                 //After the first bin:
                 //Check that the current bin is either the same level or quieter than the previous
                 //Or that the difference between them is below the threshold of hearing

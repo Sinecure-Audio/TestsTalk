@@ -1,50 +1,86 @@
+include_guard(DIRECTORY)
+
 cmake_minimum_required(VERSION 3.12)
 project(TestExamples)
 
+#add our c++ standard and optimizations
+#You should normally be using debug build
+#but if you don't, in this case the tests can take a while to run...
+#I use Ofast instead of O3 because I'd like to make sure the algorithms retains accuracy
+#Ofast can enable optimizations that reduce math accuracy be reordering operations
+if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+    add_compile_options( -Ofast -fopenmp)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+    add_compile_options(-Ofast)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+    add_compile_options(-Ofast)
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    add_compile_options(/O2 /fp:fast)
+#Lots of compilers can masquerade as GNU, so check for it last
+elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+    add_compile_options( -Ofast -fopenmp)
+endif()
+
+#Set the compiler to use c++17, depending on which compiler we use.
+if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    add_compile_options(/std:c++17)
+else()
+    add_compile_options(-std=c++17)
+endif()
+
+#Make sure the user defined a path for JUCE- error if they did not.
+if(NOT DEFINED JUCE_PATH)
+    message(FATAL_ERROR "You must set JUCE_PATH environment variable")
+endif()
+#Find and include JUCE and its modules
+add_subdirectory("${JUCE_PATH}" ./JUCE)
 #Find catch2 headers in the system
 find_package(Catch2 REQUIRED)
 
-#Find and include JUCE and its modules
-add_subdirectory("${JUCE_PATH}" ./JUCE)
+#===================Common Library Code====================================
+#Declare a library called common code
+#We'll link in our JUCE dependencies and Catch into this, and then link this to all of our test targets
+add_library(CommonCode STATIC)
 
-add_executable(TestExamples
-        #Add a main file for the executable
-        main.cpp
-
-#       These are the completed slide examples from the talk.
-#       The oscillator tests explore a more thorough version of each of these
-#        "${CMAKE_CURRENT_LIST_DIR}/1. Oscillator/Examples/1. A Simple Test/OscillatorTests.cpp"
-#        "${CMAKE_CURRENT_LIST_DIR}/1. Oscillator/Examples/2. A Better Perform Test/OscillatorTests.cpp"
-#        "${CMAKE_CURRENT_LIST_DIR}/1. Oscillator/Examples/3. Changing The Sampling Rate/OscillatorTests.cpp"
-#        "${CMAKE_CURRENT_LIST_DIR}/1. Oscillator/Examples/4. Changing The Frequency/OscillatorTests.cpp"
-
-#        #Add the Tests for utilities that both the oscillator and filter tests rely on
-        "${CMAKE_CURRENT_LIST_DIR}/Utilities/DecibelMatcherTests.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/Utilities/RandomTests.cpp"
-#
-#        #Add the Tests for the oscillator class
-        "${CMAKE_CURRENT_LIST_DIR}/1. Oscillator/OscillatorTests.cpp"
-#
-#        #Add the Tests for utilities that the filter tests rely on
-        "${CMAKE_CURRENT_LIST_DIR}/2. Filters/Signal Analysis/FFT/FFTTests.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/2. Filters/Signal Analysis/UtilsTest.cpp"
-#
-#        #Add the tests for the filter
-        "${CMAKE_CURRENT_LIST_DIR}/2. Filters/FilterTests.cpp"
-        )
-
-target_link_libraries(TestExamples
+#Link in Catch, juce_core and and juce_dsp. Also add in JUCE's usual flags
+target_link_libraries(CommonCode
         PRIVATE
         Catch2::Catch2
-
         juce::juce_core
         juce::juce_dsp
+        juce::juce_recommended_config_flags
+        juce::juce_recommended_lto_flags
+        juce::juce_recommended_warning_flags
         )
 
-# Set the c++ standard and make sure we're not using GNU extensions
-set_target_properties(TestExamples PROPERTIES CXX_STANDARD 17 CXX_EXTENSIONS OFF)
+target_compile_definitions(CommonCode
+        PUBLIC
+        JUCE_WEB_BROWSER=0
+        JUCE_USE_CURL=0
+        INTERFACE
+        $<TARGET_PROPERTY:CommonCode,COMPILE_DEFINITIONS>)
 
-#Specify the tests as a standalone application so that JUCE doesn't complain about missing settings
-target_compile_definitions(TestExamples PRIVATE JUCE_STANDALONE_APPLICATION=1)
-#Add in these optimizations if the filter tests take forever to run
-target_compile_options(TestExamples PRIVATE -O3 -fopenmp)
+target_include_directories(CommonCode
+        INTERFACE
+        $<TARGET_PROPERTY:CommonCode,INCLUDE_DIRECTORIES>)
+
+set_target_properties(CommonCode PROPERTIES
+        POSITION_INDEPENDENT_CODE TRUE
+        VISIBILITY_INLINES_HIDDEN TRUE
+        C_VISIBILITY_PRESET hidden
+        CXX_VISIBILITY_PRESET hidden)
+
+#==========================================================================
+
+#Add CTest to enable test registration in the subproject
+include(CTest)
+
+#Add Directories for the Tests
+add_subdirectory("1. Oscillator/Examples")
+add_subdirectory("1. Oscillator")
+add_subdirectory("2. Filters")
+
+#Set the number of parallel jobs ctest can use to the number of cores on the machine
+include(ProcessorCount)
+ProcessorCount(NumCores)
+set(CTEST_PARALLEL_LEVEL NumCores)

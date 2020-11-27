@@ -107,7 +107,8 @@ void testRolloffCharacteristics(Filter& filter,
     filter.reset();
 
     //Over 8 octaves...
-    for(auto i = 0; i < 8; ++i) {
+    const size_t numOctaves = std::ceil(std::log(sampleRate/T{2})/std::log(cutoff.count())/std::log(2.0));
+    for(auto i = 0; i < numOctaves; ++i) {
         //Get the desired frequency value of the first octave, clamping it if it gets too high
         const auto boundedFrequency = AnalogFrequency<double>{DigitalFrequency<double>{std::min(sampleRate/8.0,
                                                                                                 std::pow(octaveScalar, i)*cutoff.count()), sampleRate}, sampleRate};

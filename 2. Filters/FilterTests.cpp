@@ -12,7 +12,8 @@
 // the way in which it rolls off, and the level at the cutoff frequency
 // There are definitely other useful things to test- these are just the ones I came up with
 
-TEST_CASE("Test Lowpass Frequency Response", "[Filter]") {
+template<typename FilterType, FilterResponse Response>
+auto getFilterContext() noexcept {
     static constexpr size_t FFTSize = 1024;
 
     constexpr auto sampleRate = 44100.0;
@@ -21,207 +22,75 @@ TEST_CASE("Test Lowpass Frequency Response", "[Filter]") {
     const auto binNumber = GENERATE(range(size_t{1}, FFTSize/2));
     const auto cutoff = binNumber*sampleRate/FFTSize;
 
-    const auto q = QCoefficient{1.0/sqrt(2.0)};
+    const auto q = getQValue<Response, double>();
+    const auto gain = getGainValue<Response, double>();
 
     //A level for determining how close the measured level has to be to the expected level
     constexpr auto tolerance = Decibel{4.0};
 
     //Set the type of the filter to test
-    using FilterType = juce::dsp::IIR::Filter<double>;
+//    using FilterType = juce::dsp::IIR::Filter<double>;
+//    constexpr auto FilterResponse = getFilterResponseType();
 
-    auto testContext = makeFilterContext<FFTSize,
-                                         FilterResponse::Lowpass,
-                                         FilterType>
-                                         (cutoff, q, sampleRate,
-                                          Decibel{-12.0}, tolerance);
-
-    //Call out to the test
-//    testLowpassResponse(testContext);
-}
-
-TEST_CASE("Test Highpass Frequency Response", "[Filter]") {
-    static constexpr size_t FFTSize = 1024;
-
-    constexpr auto sampleRate = 44100.0;
-    //Generate a series of cutoffs equal to each bin's frequency
-    const auto binNumber = GENERATE(range(size_t{1}, FFTSize/2));
-    const auto cutoff = binNumber*sampleRate/FFTSize;
-
-    const auto q = QCoefficient{.707};
-
-    //A level for determining how close the measured level has to be to the expected level
-    constexpr auto tolerance = Decibel{4.0};
-
-    //Set the type of the filter to test
-    using FilterType = juce::dsp::IIR::Filter<double>;
-
-    auto testContext = makeFilterContext<FFTSize,
-            FilterResponse::Highpass,
+    return makeFilterContext<FFTSize,
+            Response,
             FilterType>
-            (cutoff, q, sampleRate,
+            (cutoff, q, sampleRate, gain,
              Decibel{-12.0}, tolerance);
-
-//    testHighpassResponse(testContext);
 }
 
-TEST_CASE("Test Bandpass Frequency Response", "[Filter]") {
-    static constexpr size_t FFTSize = 1024;
+//TODO: Add the capability to test gain values below 1 to the peak and shelf filters
+//TODO: Add the capability to test resonant filters (i.e. variable Q)
+//TEMPLATE_TEST_CASE("Test FILTERTYPE Frequency Response", "[Filter]", float, double) {
+//    //Call out to the test
+//    auto testContext = getFilterContext<juce::dsp::IIR::Filter<double>, getFilterResponseType()>();
+//    runFilterTests<getFilterResponseType()>(testContext);
+//}
 
-    constexpr auto sampleRate = 44100.0;
-    //Generate a series of cutoffs equal to each bin's frequency
-    const auto binNumber = GENERATE(range(size_t{1}, FFTSize/2));
-    const auto cutoff = binNumber*sampleRate/FFTSize;
-
-    constexpr auto q = QCoefficient{.707};
-
-    //A level for determining how close the measured level has to be to the expected level
-    constexpr auto tolerance = Decibel{4.0};
-
-    //Set the type of the filter to test
-    using FilterType = juce::dsp::IIR::Filter<double>;
-
-    auto testContext = makeFilterContext<FFTSize,
-                                         FilterResponse::Bandpass,
-                                         FilterType>
-                                         (cutoff, q, sampleRate,
-                                          Decibel{-12.0}, tolerance);
-
-    testBandpassResponse(testContext);
+TEMPLATE_TEST_CASE("Test Lowpass Filter", "[Filter]", float, double) {
+    //Call out to the test
+    auto testContext = getFilterContext<juce::dsp::IIR::Filter<double>, FilterResponse::Lowpass>();
+    runFilterTests<FilterResponse::Lowpass>(testContext);
 }
 
-TEST_CASE("Test BandReject Frequency Response", "[Filter]") {
-    static constexpr size_t FFTSize = 1024;
-
-    constexpr auto sampleRate = 44100.0;
-    //Generate a series of cutoffs equal to each bin's frequency
-    const auto binNumber = GENERATE(range(size_t{1}, FFTSize/2));
-    const auto cutoff = binNumber*sampleRate/FFTSize;
-
-    constexpr auto q = QCoefficient{.707};
-
-    //A level for determining how close the measured level has to be to the expected level
-    constexpr auto tolerance = Decibel{4.0};
-
-    //Set the type of the filter to test
-    using FilterType = juce::dsp::IIR::Filter<double>;
-
-    auto testContext = makeFilterContext<FFTSize,
-                                         FilterResponse::BandReject,
-                                         FilterType>
-                                         (cutoff, q, sampleRate,
-                                          Decibel{-12.0}, tolerance);
-
-    testBandrejectResponse(testContext);
+TEMPLATE_TEST_CASE("Test Highpass Filter", "[Filter]", float, double) {
+    //Call out to the test
+    auto testContext = getFilterContext<juce::dsp::IIR::Filter<double>, FilterResponse::Highpass>();
+    runFilterTests<FilterResponse::Highpass>(testContext);
 }
 
-TEST_CASE("Test Allpass Frequency Response", "[Filter]") {
-    static constexpr size_t FFTSize = 1024;
-
-    constexpr auto sampleRate = 44100.0;
-    //Generate a series of cutoffs equal to each bin's frequency
-    const auto binNumber = GENERATE(range(size_t{1}, FFTSize/2));
-    const auto cutoff = binNumber*sampleRate/FFTSize;
-
-    constexpr auto q = QCoefficient{.707};
-
-    //A level for determining how close the measured level has to be to the expected level
-    constexpr auto tolerance = Decibel{4.0};
-
-    //Set the type of the filter to test
-    using FilterType = juce::dsp::IIR::Filter<double>;
-
-    auto testContext = makeFilterContext<FFTSize,
-                                         FilterResponse::Allpass,
-                                         FilterType>
-                                         (cutoff, q, sampleRate,
-                                          Decibel{0.0}, tolerance);
-
-    testAllpassResponse(testContext);
+TEMPLATE_TEST_CASE("Test Bandpass Filter", "[Filter]", float, double) {
+    //Call out to the test
+    auto testContext = getFilterContext<juce::dsp::IIR::Filter<double>, FilterResponse::Bandpass>();
+    runFilterTests<FilterResponse::Bandpass>(testContext);
 }
 
-TEST_CASE("Test Peak Frequency Response", "[Filter]") {
-    static constexpr size_t FFTSize = 1024;
-
-    constexpr auto sampleRate = 44100.0;
-    //Generate a series of cutoffs equal to each bin's frequency
-    const auto binNumber = GENERATE(range(size_t{1}, FFTSize/2));
-    const auto cutoff = binNumber*sampleRate/FFTSize;
-
-    constexpr auto q = QCoefficient{.707};
-
-    //A level for determining how close the measured level has to be to the expected level
-    constexpr auto tolerance = Decibel{4.0};
-
-    //Set the type of the filter to test
-    using FilterType = juce::dsp::IIR::Filter<double>;
-
-    //Generate 4 random values for the gain (don't wanna make the tests TOO long...)
-    const double gain = GENERATE(take(4, random(0.1, 1.0)));
-
-    auto testContext = makeFilterContext<FFTSize,
-            FilterResponse::Peak,
-            FilterType>
-            (cutoff, q, sampleRate,
-             Decibel{0.0}, tolerance, gain);
-
-    testPeakResponse(testContext);
+TEMPLATE_TEST_CASE("Test Bandreject Filter", "[Filter]", float, double) {
+    //Call out to the test
+    auto testContext = getFilterContext<juce::dsp::IIR::Filter<double>, FilterResponse::BandReject>();
+    runFilterTests<FilterResponse::BandReject>(testContext);
 }
 
-
-TEST_CASE("Test Lowshelf Frequency Response", "[Filter]") {
-    static constexpr size_t FFTSize = 1024;
-
-    constexpr auto sampleRate = 44100.0;
-    //Generate a series of cutoffs equal to each bin's frequency
-    const auto binNumber = GENERATE(range(size_t{1}, FFTSize/2));
-    const auto cutoff = binNumber*sampleRate/FFTSize;
-
-    constexpr auto q = QCoefficient{.707};
-
-    //A level for determining how close the measured level has to be to the expected level
-    constexpr auto tolerance = Decibel{4.0};
-
-    //Set the type of the filter to test
-    using FilterType = juce::dsp::IIR::Filter<double>;
-
-    //Generate 4 random values for the gain (don't wanna make the tests TOO long...)
-    //TODO: after making cut spectrums pass the test, change the lower bound to .1
-    const double gain = GENERATE(take(4, random(1.0, 100.0)));
-
-    auto testContext = makeFilterContext<FFTSize,
-            FilterResponse::LowShelf,
-            FilterType>
-            (cutoff, q, sampleRate,
-             Decibel{0.0}, tolerance, gain);
-
-    testLowShelfResponse(testContext);
+TEMPLATE_TEST_CASE("Test Allpass Filter", "[Filter]", float, double) {
+    //Call out to the test
+    auto testContext = getFilterContext<juce::dsp::IIR::Filter<double>, FilterResponse::Allpass>();
+    runFilterTests<FilterResponse::Allpass>(testContext);
 }
 
-TEST_CASE("Test Highshelf Frequency Response", "[Filter]") {
-    static constexpr size_t FFTSize = 1024;
+TEMPLATE_TEST_CASE("Test Peak Filter", "[Filter]", float, double) {
+    //Call out to the test
+    auto testContext = getFilterContext<juce::dsp::IIR::Filter<double>, FilterResponse::Peak>();
+    runFilterTests<FilterResponse::Peak>(testContext);
+}
 
-    constexpr auto sampleRate = 44100.0;
-    //Generate a series of cutoffs equal to each bin's frequency
-    const auto binNumber = GENERATE(range(size_t{1}, FFTSize/2));
-    const auto cutoff = binNumber*sampleRate/FFTSize;
+TEMPLATE_TEST_CASE("Test LowShelf Filter", "[Filter]", float, double) {
+    //Call out to the test
+    auto testContext = getFilterContext<juce::dsp::IIR::Filter<double>, FilterResponse::LowShelf>();
+    runFilterTests<FilterResponse::LowShelf>(testContext);
+}
 
-    constexpr auto q = QCoefficient{.707};
-
-    //A level for determining how close the measured level has to be to the expected level
-    constexpr auto tolerance = Decibel{4.0};
-
-    //Set the type of the filter to test
-    using FilterType = juce::dsp::IIR::Filter<double>;
-
-    //Generate 4 random values for the gain (don't wanna make the tests TOO long...)
-    //TODO: after making cut spectrums pass the test, change the lower bound to .1
-    const double gain = GENERATE(take(4, random(1.0, 100.0)));
-
-    auto testContext = makeFilterContext<FFTSize,
-            FilterResponse::HighShelf,
-            FilterType>
-            (cutoff, q, sampleRate,
-             Decibel{0.0}, tolerance, gain);
-
-    testHighShelfResponse(testContext);
+TEMPLATE_TEST_CASE("Test HighShelf Filter", "[Filter]", float, double) {
+    //Call out to the test
+    auto testContext = getFilterContext<juce::dsp::IIR::Filter<double>, FilterResponse::HighShelf>();
+    runFilterTests<FilterResponse::HighShelf>(testContext);
 }

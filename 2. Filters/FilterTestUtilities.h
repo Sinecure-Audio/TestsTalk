@@ -17,8 +17,8 @@ auto makeNoiseBuffer() {
 //Makes a buffer of noise and takes its spectrum, returning both
 template<size_t FFTSize>
 const auto makeNoiseBufferAndSpectrum() {
-    static const auto buffer = makeNoiseBuffer<float, 100000>();
-    static const auto spectrum = [&]() {
+    const auto buffer = makeNoiseBuffer<float, 100000>();
+    const auto spectrum = [&]() {
         BufferAverager<float, FFTSize * 2> accumulator{};
         FFTHelper<float, FFTSize> fft{};
         for (auto &&sample : buffer) {
@@ -45,7 +45,7 @@ struct FilterTestContext {
     {}
 
     FilterTestContext(double newCutoff, const QCoefficient<double>& newQ,
-                      double newSampleRate, FilterType&& newFilter, double newGain,
+                      double newSampleRate, double newGain, FilterType&& newFilter,
                       const Decibel<double>& newRolloffPerOctave, const Decibel<double>& newTolerance,
                       const NoiseBuffer& newNoiseBuffer, const NoiseSpectrum& newNoiseSpectrum)
             : cutoff(newCutoff), q(newQ), sampleRate(newSampleRate), filter(std::move(newFilter)), filterGain(newGain),
@@ -133,17 +133,59 @@ auto setupFilter(const T& cutoff, const QCoefficient<T>& q, const T& sampleRate,
 }
 
 template<size_t FFTSize, FilterResponse Response, typename Filter, typename T>
-auto makeFilterContext(T cutoff, QCoefficient<T> q, T sampleRate,
-                       Decibel<T> rolloff, Decibel<T> tolerance, T gain = 1.0)
+auto makeFilterContext(T cutoff, QCoefficient<T> q, T sampleRate, T gain,
+                       Decibel<T> rolloff, Decibel<T> tolerance)
 {
     const auto& [noiseBuffer, noiseSpectrum] = makeNoiseBufferAndSpectrum<FFTSize>();
 // TODO: check why using references in the test context for the noise stuff doesn't work
-    return FilterTestContext{cutoff, q, sampleRate,
+    return FilterTestContext{cutoff, q, sampleRate, gain,
                              std::move(setupFilter<Filter, Response>(cutoff,
                                                                      q,
                                                                      sampleRate,
                                                                      gain)),
-                             gain,
                              rolloff, tolerance,
                              noiseBuffer, noiseSpectrum};
+}
+
+template<FilterResponse Response, typename... Ts>
+constexpr auto runFilterTests(FilterTestContext<Ts...>& testContext) noexcept {
+if constexpr (Response == FilterResponse::Lowpass)
+    testLowpassResponse(testContext);
+else if constexpr (Response == FilterResponse::Highpass)
+    testHighpassResponse(testContext);
+else if constexpr (Response == FilterResponse::Bandpass)
+    testBandpassResponse(testContext);
+else if constexpr (Response == FilterResponse::BandReject)
+    testBandrejectResponse(testContext);
+else if constexpr (Response == FilterResponse::Allpass)
+    testAllpassResponse(testContext);
+else if constexpr (Response == FilterResponse::Peak)
+    testPeakResponse(testContext);
+else if constexpr (Response == FilterResponse::LowShelf)
+    testLowShelfResponse(testContext);
+else if constexpr (Response == FilterResponse::HighShelf)
+    testHighShelfResponse(testContext);
+}
+
+//TODO: Add variable Q
+//Eventually, add random Q's for low/high/bandpass and bandreject
+//For now, just use .707 i.e. flat
+template<FilterResponse Response, typename T>
+constexpr auto getQValue() {
+//    if constexpr(FILTERTYPE < 4)
+    return QCoefficient<T>(std::sqrt(T{2})/T{2});
+//    else
+//        return QCoefficient<T>{T{1}};
+}
+
+//If we're testing a shelf or peak filter, generate a random gain
+//Otherwise, just set the gain as 1
+template<FilterResponse Response, typename T>
+constexpr auto getGainValue() {
+    if constexpr (Response == FilterResponse::Peak
+               || Response == FilterResponse::LowShelf
+               || Response == FilterResponse::HighShelf)
+        return GENERATE(take(10, random(T{.1}, T{100})));
+    else
+        return T{1};
 }
