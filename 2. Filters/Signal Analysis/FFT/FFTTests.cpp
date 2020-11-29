@@ -9,7 +9,7 @@
 constexpr auto numIterations = 1000000;
 
 //Test that the largest bin in the fft, when given a DC input, is 0
-TEST_CASE ("DC Response", "[FFT]") {
+TEST_CASE ("FFT DC Response", "[FFT]") {
     FFTHelper<float, 10> fft;
 
     for(auto i = 0; i < numIterations; ++i)
@@ -21,7 +21,7 @@ TEST_CASE ("DC Response", "[FFT]") {
 }
 
 //Test that the largest bin in the fft, when given a sin input, is the sin frequency
-TEST_CASE ("Sin Response", "[FFT]")
+TEST_CASE ("FFT Sin Response", "[FFT]")
 {
     static constexpr size_t FFTSize = 1024;
     FFTHelper<float, FFTSize> fft;
@@ -52,9 +52,9 @@ TEST_CASE ("Sin Response", "[FFT]")
 
 
 //Test that a noise input outputs a homogenous spectrum
-TEST_CASE ("Noise Response", "[FFT]")
+TEST_CASE ("FFT Noise Response", "[FFT]")
 {
-    //Generate the noise spectru,
+    //Make an fft and accumulator, and run noise through it for the set number of iterations
     static constexpr size_t fftSize = 1024;
     BufferAverager<double, fftSize * 2> accumulator{};
     FFTHelper<float, fftSize> fft;
