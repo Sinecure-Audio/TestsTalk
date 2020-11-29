@@ -32,10 +32,22 @@ endif()
 if(NOT DEFINED JUCE_PATH)
     message(FATAL_ERROR "You must set JUCE_PATH environment variable")
 endif()
+# overwrite install() command with a dummy macro that is a nop
+macro (install)
+endmacro ()
+
+
 #Find and include JUCE and its modules
 add_subdirectory("${JUCE_PATH}" ./JUCE)
 #Find catch2 headers in the system
 find_package(Catch2 REQUIRED)
+
+# remove install target added by JUCE, since this project should not install anything
+install()# function with the given arguments
+macro (install)
+    _install(${ARGV})
+endmacro(install)
+
 
 #===================Common Library Code====================================
 #Declare a library called common code
@@ -57,6 +69,8 @@ target_compile_definitions(CommonCode
         PUBLIC
         JUCE_WEB_BROWSER=0
         JUCE_USE_CURL=0
+        PRIVATE
+        JUCE_STANDALONE_APPLICATION=1
         INTERFACE
         $<TARGET_PROPERTY:CommonCode,COMPILE_DEFINITIONS>)
 
@@ -72,15 +86,25 @@ set_target_properties(CommonCode PROPERTIES
 
 #==========================================================================
 
-#Add CTest to enable test registration in the subproject
-include(CTest)
+#Enable test registration and include Catch for all subprojects
+#We want to use CTest to run our tests because it gives us fine grained control over which tests we run
+#As well as parallelizing our tests- each new test can run on an empty core
+enable_testing()
+include(Catch)
+#Remove ZERO_CHECK target
+set(CMAKE_SUPPRESS_REGENERATION true)
 
+#If no NUM_CORES argument given, make one equal to half the cores on this system
+if(NOT DEFINED NUM_CORES)
+    #Set the number of parallel jobs ctest can use to the number of cores on the machine
+    include(ProcessorCount)
+    ProcessorCount(NUM_CORES)
+    math(EXPR NumCores "${NUM_CORES}/2")
+endif()
+
+#Add the number of cores to use, as well as desired verbosity to CTest's arguments
+list(APPEND CMAKE_CTEST_ARGUMENTS -j${NUM_CORES} --extra-verbose)
 #Add Directories for the Tests
 add_subdirectory("1. Oscillator/Examples")
 add_subdirectory("1. Oscillator")
 add_subdirectory("2. Filters")
-
-#Set the number of parallel jobs ctest can use to the number of cores on the machine
-include(ProcessorCount)
-ProcessorCount(NumCores)
-set(CTEST_PARALLEL_LEVEL NumCores)
