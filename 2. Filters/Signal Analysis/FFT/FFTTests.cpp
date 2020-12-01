@@ -10,7 +10,7 @@ constexpr auto numIterations = 1000000;
 
 //Test that the largest bin in the fft, when given a DC input, is 0
 TEST_CASE ("FFT DC Response", "[FFT]") {
-    FFTHelper<float, 10> fft;
+    FFTHelper<1024> fft;
 
     for(auto i = 0; i < numIterations; ++i)
         fft.perform(.5);
@@ -24,7 +24,7 @@ TEST_CASE ("FFT DC Response", "[FFT]") {
 TEST_CASE ("FFT Sin Response", "[FFT]")
 {
     static constexpr size_t FFTSize = 1024;
-    FFTHelper<float, FFTSize> fft;
+    FFTHelper<FFTSize> fft;
     const double sampleRate = 44100.0;
     const size_t currentBin = GENERATE(0, FFTSize);
     const double frequency = currentBin*(sampleRate/FFTSize);
@@ -33,12 +33,12 @@ TEST_CASE ("FFT Sin Response", "[FFT]")
 
     for(auto i = 0; i < numIterations; ++i) {
         const auto in = std::sin(juce::MathConstants<double>::twoPi*phase);
-        fft.perform(in);
+        fft.perform(static_cast<float>(in));
         phase += phaseIncrement;
     }
 
     const auto& fftData = fft.getFFTData();
-    const auto largestBin = std::distance(fftData.begin(), std::max_element(fftData.begin(), fftData.end()));
+    const size_t largestBin = std::distance(fftData.begin(), std::max_element(fftData.begin(), fftData.end()));
     //The largest bin should be the bin that contains our sin wave
     REQUIRE(largestBin == currentBin%(FFTSize/2));
     //The bins adjacent should roll off a certain amount
@@ -46,8 +46,10 @@ TEST_CASE ("FFT Sin Response", "[FFT]")
 
     const auto largestDecibelValue = Decibel<float>::convertAmplitudeToDecibel(fftData[largestBin]);
 
-    REQUIRE_THAT(largestDecibelValue, ResidualDecibels<float>(fftData[largestBin-1], threshold));
-    REQUIRE_THAT(largestDecibelValue, ResidualDecibels<float>(fftData[largestBin+1], threshold));
+    if(largestBin > 0)
+        REQUIRE_THAT(largestDecibelValue, ResidualDecibels<float>(fftData[largestBin-1], threshold));
+    if (largestBin < fftData.size()-1)
+        REQUIRE_THAT(largestDecibelValue, ResidualDecibels<float>(fftData[largestBin+1], threshold));
 }
 
 
@@ -55,11 +57,11 @@ TEST_CASE ("FFT Sin Response", "[FFT]")
 TEST_CASE ("FFT Noise Response", "[FFT]")
 {
     //Make an fft and accumulator, and run noise through it for the set number of iterations
-    static constexpr size_t fftSize = 1024;
-    BufferAverager<double, fftSize * 2> accumulator{};
-    FFTHelper<float, fftSize> fft;
+    static constexpr size_t FFTSize = 1024;
+    BufferAverager<double, FFTSize * 2> accumulator{};
+    FFTHelper<FFTSize> fft;
     for(auto i = 0; i < numIterations; ++i) {
-        const auto& result = fft.perform(getBoundedRandom(-1.0, 1.0));
+        const auto& result = fft.perform(getBoundedRandom(-1.0f, 1.0f));
         if (result != std::nullopt)
             accumulator.perform(result.value());
     }

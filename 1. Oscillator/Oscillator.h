@@ -39,12 +39,12 @@ public:
         // 0 at phase 0
         // 1 at phase .25,
         // -1 at phase .75
-        if(in < .25)
+        if (in < SampleType{ .25 })
             return in*SampleType{4};
-        else if(in < .75)
+        else if (in < SampleType{ .75 })
             return SampleType{1}-SampleType{4}*(in-SampleType{.25});
         else
-            return 4.0*in-4.0;
+            return SampleType{ 4 }*in - SampleType{ 4 };
     }
 };
 

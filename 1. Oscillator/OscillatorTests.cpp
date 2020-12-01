@@ -24,7 +24,7 @@ TEMPLATE_TEST_CASE("Perform Oscillator", "[Oscillator]", float, double) {
         const auto phaseIncrement = oscillatorFrequency/sampleRate;
 
         for (auto i = 0; i < numIterations; ++i) {
-            const auto phaseReference = std::fmod(i, TestType{1}/phaseIncrement)*phaseIncrement;
+            const auto phaseReference = std::fmod(static_cast<TestType>(i), TestType{1}/phaseIncrement)*phaseIncrement;
 
             const auto oscOut = oscillator.perform();
             const Decibel<TestType> oscillatorLevel = Amplitude{oscOut};
@@ -38,8 +38,8 @@ TEMPLATE_TEST_CASE("Perform Oscillator", "[Oscillator]", float, double) {
     }
 
     SECTION("Perform Sin Oscillator With Different Sample Rates") {
-        const TestType sampleRate = GENERATE(44100.0, 48000.0, 88200.0, 96000.0, 176400.0, 192000.0);
-        constexpr TestType oscillatorFrequency = 440.0;
+        const auto sampleRate = GENERATE(TestType{ 44100.0 }, TestType{ 48000.0 }, TestType{ 88200.0 }, TestType{ 96000.0 }, TestType{ 176400.0 }, TestType{ 192000.0 });
+        constexpr auto oscillatorFrequency = TestType{ 440 };
 
         Oscillator<TestType> oscillator{};
         oscillator.setFrequency(oscillatorFrequency);
@@ -48,7 +48,7 @@ TEMPLATE_TEST_CASE("Perform Oscillator", "[Oscillator]", float, double) {
         const auto phaseIncrement = oscillatorFrequency/sampleRate;
 
         for (auto i = 0; i < numIterations; ++i) {
-            const auto phaseReference = std::fmod(i, TestType{1}/phaseIncrement)*phaseIncrement;
+            const auto phaseReference = std::fmod(static_cast<TestType>(i), TestType{ 1 } / phaseIncrement)* phaseIncrement;
             const auto oscOutput = oscillator.perform();
             const Decibel<TestType> oscLevel = Amplitude{oscOutput};
             const auto ref = std::fmod(phaseReference, TestType{1});
@@ -59,8 +59,8 @@ TEMPLATE_TEST_CASE("Perform Oscillator", "[Oscillator]", float, double) {
     }
 
     SECTION("Perform Sin Oscillator With Random Frequencies") {
-        const TestType oscillatorFrequency = GENERATE(take(100, random(0.0, 20000.0)));
-        constexpr TestType sampleRate = 44100.0;
+        const auto oscillatorFrequency = GENERATE(take(100, random(TestType{ 0 }, TestType{ 20000 })));
+        constexpr auto sampleRate = TestType{ 44100 };
 
         Oscillator<TestType> oscillator{};
         oscillator.setFrequency(oscillatorFrequency);
@@ -69,7 +69,7 @@ TEMPLATE_TEST_CASE("Perform Oscillator", "[Oscillator]", float, double) {
         const auto phaseIncrement = oscillatorFrequency/sampleRate;
 
         for (auto i = 0; i < numIterations; ++i) {
-            const auto phaseReference = std::fmod(i, TestType{1}/phaseIncrement)*phaseIncrement;
+            const auto phaseReference = std::fmod(static_cast<TestType>(i), TestType{ 1 } / phaseIncrement) * phaseIncrement;
             const Decibel<TestType> oscOutput = Amplitude{oscillator.perform()};
 
             CHECK_THAT(oscOutput,
@@ -79,8 +79,8 @@ TEMPLATE_TEST_CASE("Perform Oscillator", "[Oscillator]", float, double) {
     }
 
     SECTION("Oscillator Sync") {
-        const TestType oscillatorFrequency = GENERATE(take(100, random(5.0, 20000.0)));
-        constexpr TestType sampleRate = 44100.0;
+        const auto oscillatorFrequency = GENERATE(take(100, random(TestType{ 0 }, TestType{ 20000 })));
+        constexpr auto sampleRate = TestType{ 44100 };
 
         Oscillator<TestType> oscillator{};
         oscillator.setFrequency(oscillatorFrequency);

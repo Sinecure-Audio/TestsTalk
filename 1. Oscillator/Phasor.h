@@ -53,13 +53,13 @@ private:
     // The result will be 9*phaseVelocity
     //This is done to minimize the magnitude of any floating point error
     constexpr auto getPhaseFromIndex(size_t index) const noexcept {
-        return std::fmod(index, iterationsPerCycle)*phaseVelocity;
+        return std::fmod(static_cast<SampleType>(index), iterationsPerCycle)*phaseVelocity;
     }
 
     void updatePhase() {
         phaseVelocity = frequency/sampleRate;
         iterationsPerCycle = SampleType{1}/phaseVelocity;
-        phase = std::fmod(phase+getPhaseFromIndex(counter), SampleType{1});
+        phase = std::fmod(static_cast<SampleType>(phase+getPhaseFromIndex(counter)), SampleType{1});
     }
 
 

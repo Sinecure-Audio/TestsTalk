@@ -2,15 +2,15 @@
 
 #include "FilterTestUtilities.h"
 
-//Measure the level of a sin wave run through a filter at a certain frquency
-template<typename T>
-auto measureFilteredSinLevelAtFrequency(T& filter, double testFrequency, double sampleRate) {
-    CumulativeAverage<float> outputAverage{};
+//Measure the level of a sin wave run through a filter at a certain frequency
+template<typename SampleType, typename Filter>
+auto measureFilteredSinLevelAtFrequency(Filter& filter, SampleType testFrequency, SampleType sampleRate) {
+    CumulativeAverage<SampleType> outputAverage{};
 
-    Oscillator<double> sinWave;
+    Oscillator<SampleType> sinWave;
     sinWave.setSampleRate(sampleRate);
     sinWave.setFrequency(testFrequency);
-    sinWave.setWaveform(std::make_unique<SinShaper<double>>());
+    sinWave.setWaveform(std::make_unique<SinShaper<SampleType>>());
 
     filter.reset();
 
@@ -23,16 +23,16 @@ auto measureFilteredSinLevelAtFrequency(T& filter, double testFrequency, double 
 }
 
 //Get the spectrum of white noise through a filter
-template<size_t FFTSize, typename NoiseBuffer, typename Filter>
-auto getFilteredSpectrum(FFTHelper<float, FFTSize>& fft, const NoiseBuffer& noiseBuffer, Filter& filter)
+template<typename SampleType, size_t FFTSize, typename NoiseBuffer, typename Filter>
+auto getFilteredSpectrum(FFTHelper<FFTSize>& fft, const NoiseBuffer& noiseBuffer, Filter& filter)
 {
-    BufferAverager<float, FFTSize * 2> accumulator{};
+    BufferAverager<SampleType, FFTSize*2> accumulator{};
 
     fft.reset();
     filter.reset();
 
     for(auto&& sample : noiseBuffer) {
-        const auto result = fft.perform(filter.processSample(sample));
+        const auto result = fft.perform(static_cast<float>(filter.processSample(sample)));
         if (result != std::nullopt)
             accumulator.perform(result.value());
     }
@@ -40,18 +40,18 @@ auto getFilteredSpectrum(FFTHelper<float, FFTSize>& fft, const NoiseBuffer& nois
 }
 
 //Calculates the difference in level of a sin wave before and after filtering
-template<typename Filter>
+template<typename SampleType, typename Filter>
 auto calculateLevelReductionAtFrequency(Filter& filter,
-                                        const Frequency<double>& frequency,
-                                        double sampleRate)
+                                        const Frequency<SampleType>& frequency,
+                                        SampleType sampleRate)
 {
-    CumulativeAverage<float> sinAverage{};
-    CumulativeAverage<float> filterAverage{};
+    CumulativeAverage<SampleType> sinAverage{};
+    CumulativeAverage<SampleType> filterAverage{};
 
-    Oscillator<double> sinWave;
+    Oscillator<SampleType> sinWave;
     sinWave.setSampleRate(sampleRate);
     sinWave.setFrequency(frequency);
-    sinWave.setWaveform(std::make_unique<SinShaper<double>>());
+    sinWave.setWaveform(std::make_unique<SinShaper<SampleType>>());
 
     filter.reset();
 
@@ -61,23 +61,24 @@ auto calculateLevelReductionAtFrequency(Filter& filter,
         filterAverage.updateAverage(std::abs(filter.processSample(sinVal)));
     }
 
-    const Decibel<float> peakSinLevel    = Amplitude(sinAverage.getAverage());
-    const Decibel<float> peakFilterLevel = Amplitude(filterAverage.getAverage());
+    const Decibel<SampleType> peakSinLevel    = Amplitude(sinAverage.getAverage());
+    const Decibel<SampleType> peakFilterLevel = Amplitude(filterAverage.getAverage());
     const auto decibelValue = peakSinLevel.count()-peakFilterLevel.count();
     const auto sign = std::signbit(decibelValue) ? 1.0 : -1.0;
     return Decibel{sign*std::abs(decibelValue)};
 }
 
 //Get the average absolute amplitude of a sin wave at a given frequency
-auto getSinAverage(double frequency, double sampleRate) {
+template<typename T>
+auto getSinAverage(T frequency, T sampleRate) {
     //Make a sine wave oscillator
-    Oscillator<double> sinWave;
+    Oscillator<T> sinWave;
     sinWave.setSampleRate(sampleRate);
     sinWave.setFrequency(frequency);
-    sinWave.setWaveform(std::make_unique<SinShaper<double>>());
+    sinWave.setWaveform(std::make_unique<SinShaper<T>>());
 
     //Make an averager to measure the value
-    CumulativeAverage<float> sinAverage{};
+    CumulativeAverage<T> sinAverage{};
 
     for (auto i = 0; i < 100000; ++i) {
         const auto sinVal = sinWave.perform();
@@ -96,34 +97,34 @@ enum RolloffDirection {
 template<RolloffDirection Direction, typename Filter, typename T>
 void testRolloffCharacteristics(Filter& filter,
                                 const DigitalFrequency<T>& cutoff,
-                                double sampleRate,
+                                T sampleRate,
                                 const Decibel<T>& rolloffAmount,
                                 const Decibel<T>& tolerance)
 {
     //If the spectrum rolloffs as the frequency gets higher, then we want to measure increasing doubles of a frequency
     //If the rolloff is in the down direction, then we want successive halves
-    constexpr auto octaveScalar = Direction == RolloffDirection::Up ? 2 : .5;
+    constexpr auto octaveScalar = Direction == RolloffDirection::Up ? T{ 2 } : T{ .5 };
 
     filter.reset();
 
     //Over 8 octaves...
-    const size_t numOctaves = std::ceil(std::log(sampleRate/T{2})/std::log(cutoff.count())/std::log(2.0));
+    const auto numOctaves = static_cast<size_t>(std::ceil(std::log(sampleRate/T{2})/std::log(cutoff.count())/std::log(2.0)));
     for(auto i = 0; i < numOctaves; ++i) {
         //Get the desired frequency value of the first octave, clamping it if it gets too high
-        const auto boundedFrequency = AnalogFrequency<double>{DigitalFrequency<double>{std::min(sampleRate/8.0,
-                                                                                                std::pow(octaveScalar, i)*cutoff.count()), sampleRate}, sampleRate};
+        const auto boundedFrequency = AnalogFrequency<T>{ DigitalFrequency<T>{std::min(sampleRate / T{8},
+                                                                                      std::pow(octaveScalar, T(i)* cutoff.count())), sampleRate}, sampleRate };
 
         //Get the desired frequency value of the first octave, clamping it if it gets too high
-        const auto boundedFrequency1 = DigitalFrequency{boundedFrequency*.5, sampleRate};
+        const auto boundedFrequency1 = DigitalFrequency{ boundedFrequency / T{2}, sampleRate };
 
-        //Get the average level of the first ocatve
-        const Decibel<double> currentCutoffAverage
-                = Amplitude<double>(measureFilteredSinLevelAtFrequency(filter, boundedFrequency.count(), sampleRate).getAverage());
-        //Get the average level of the second ocatve
-        const Decibel<double> nextCutoffAverage
-                = Amplitude<double>(measureFilteredSinLevelAtFrequency(filter, boundedFrequency1.count(), sampleRate).getAverage());
+        //Get the average level of the first octave
+        const Decibel<T> currentCutoffAverage
+                = Amplitude<T>(measureFilteredSinLevelAtFrequency(filter, boundedFrequency.count(), sampleRate).getAverage());
+        //Get the average level of the second octave
+        const Decibel<T> nextCutoffAverage
+                = Amplitude<T>(measureFilteredSinLevelAtFrequency(filter, boundedFrequency1.count(), sampleRate).getAverage());
         //Check that the second octave plus the rolloff and threshold is higher than the current octave
-        //Meaning that, when correcting for rolloff, the two octaves are withen the tolerance level of each other
+        //Meaning that, when correcting for rolloff, the two octaves are within the tolerance level of each other
         REQUIRE(nextCutoffAverage.count()
                 - rolloffAmount.count()
                 + std::abs(tolerance.count())

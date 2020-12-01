@@ -15,14 +15,20 @@ elseif (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
     add_compile_options(-Ofast)
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    add_compile_options(/O2 /fp:fast)
+    if(CMAKE_BUILD_TYPE="Release")
+        #No fast math because it fails
+        add_compile_options(/O2 /Ot /Ob2 /Oi /GL)
+    endif()
 #Lots of compilers can masquerade as GNU, so check for it last
 elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    add_compile_options( -Ofast -fopenmp)
+    add_compile_options(-Ofast -fopenmp)
 endif()
 
+set(CMAKE_CONFIGURATION_TYPES "Release;Debug")
 #Set the compiler to use c++17, depending on which compiler we use.
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+    #remove extra configurations, make release the default
+#    set(CMAKE_CONFIGURATION_TYPES "Release;Debug")
     add_compile_options(/std:c++17)
 else()
     add_compile_options(-std=c++17)
@@ -104,6 +110,8 @@ endif()
 
 #Add the number of cores to use, as well as desired verbosity to CTest's arguments
 list(APPEND CMAKE_CTEST_ARGUMENTS -j${NUM_CORES} --extra-verbose)
+
+
 #Add Directories for the Tests
 add_subdirectory("1. Oscillator/Examples")
 add_subdirectory("1. Oscillator")

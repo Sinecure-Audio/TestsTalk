@@ -82,14 +82,16 @@ private:
 
 //A struct that keeps a running average of each element in a collection
 //Useful to average the level of an fft's bins over multiple frames, for example
-template<typename FloatType, size_t Size>
+template<typename FloatType, size_t BufferSize>
 class BufferAverager
 {
 public:
+    static constexpr auto Size = BufferSize;
+
     template<typename Collection>
     auto perform(const Collection& collection) noexcept {
-        for(auto i = 0; i < collection.size(); ++i)
-            buffer[i].updateAverage(collection[i]);
+        for(auto i = 0; i < collection.get().size(); ++i)
+            buffer[i].updateAverage(collection.get()[i]);
     }
 
     template<typename T>
@@ -106,5 +108,5 @@ public:
     constexpr const auto& getBuffer() const noexcept { return buffer; }
 
 private:
-    std::array<CumulativeAverage<FloatType>, Size> buffer{};
+    std::vector<CumulativeAverage<FloatType>> buffer{Size};
 };

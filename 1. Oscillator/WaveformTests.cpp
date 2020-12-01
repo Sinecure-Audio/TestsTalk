@@ -18,7 +18,7 @@ TEMPLATE_TEST_CASE("Change Oscillator Wavetables", "[Oscillator]", float, double
 
 template<typename T>
 auto getOscillatorAndSampleRate() {
-    const T oscillatorFrequency = GENERATE(take(100, random(0.0, 20000.0)));
+    const auto oscillatorFrequency = GENERATE(take(100, random(T{ 0 }, T{ 20000 })));
     const auto sampleRate = GENERATE(T{44100},
                                      T{48000},
                                      T{88200},
@@ -42,7 +42,7 @@ TEMPLATE_TEST_CASE("Sin Wave", "[Oscillator]", float, double) {
 
 
     for (auto i = 0; i < numIterations; ++i) {
-        const TestType phaseReference = std::fmod(i, iterationsPerCycle)*phaseIncrement;
+        const auto phaseReference = std::fmod(static_cast<TestType>(i), iterationsPerCycle)*phaseIncrement;
         const auto angleInRadians = phaseReference * juce::MathConstants<TestType>::twoPi;
         const auto oscOutput = osc.perform();
         const Decibel<TestType> oscLevel = Amplitude{oscOutput};
@@ -64,7 +64,7 @@ TEMPLATE_TEST_CASE("Tri Wave", "[Oscillator]", float, double) {
     osc.setSampleRate(sampleRate);
 
     for (auto i = 0; i < numIterations; ++i) {
-        const TestType phaseReference = std::fmod(i, iterationsPerCycle)*phaseIncrement;
+        const auto phaseReference = std::fmod(static_cast<TestType>(i), iterationsPerCycle)*phaseIncrement;
         if (phaseReference < TestType{.25}) {
             CHECK_THAT(osc.perform(),
                        Catch::WithinAbs(lerp(TestType{0},
@@ -99,7 +99,7 @@ TEMPLATE_TEST_CASE("Square Wave", "[Oscillator]", float, double) {
     osc.setSampleRate(sampleRate);
 
     for (auto i = 0; i < numIterations; ++i) {
-        const TestType phaseReference = std::fmod(i, iterationsPerCycle)*phaseIncrement;
+        const auto phaseReference = std::fmod(static_cast<TestType>(i), iterationsPerCycle)*phaseIncrement;
         const auto isHigh = phaseReference >= TestType{.5};
         const auto reference = isHigh ? TestType{1} : TestType{-1};
         const auto oscOut = osc.perform();
@@ -122,7 +122,7 @@ TEMPLATE_TEST_CASE("Saw Wave", "[Oscillator]", float, double) {
     osc.setSampleRate(sampleRate);
 
     for (auto i = 0; i < numIterations; ++i) {
-        const TestType phaseReference = std::fmod(i, iterationsPerCycle)*phaseIncrement;
+        const auto phaseReference = std::fmod(static_cast<TestType>(i), iterationsPerCycle)*phaseIncrement;
         const auto oscOut = Amplitude{osc.perform()};
         const auto ref = lerp(TestType{-1}, TestType{1}, phaseReference);
 

@@ -10,78 +10,86 @@ template<typename SampleType, size_t NumSamples>
 auto makeNoiseBuffer() {
     std::vector<SampleType> vec;
     vec.resize(NumSamples);
-    std::generate(vec.begin(), vec.end(), [](){return getBoundedRandom(-1.0, 1.0);});
+    std::generate(vec.begin(), vec.end(), []() {return getBoundedRandom(SampleType{ -1 }, SampleType{ 1 });});
     return vec;
 }
 
-//Makes a buffer of noise and takes its spectrum, returning both
-template<size_t FFTSize>
-const auto makeNoiseBufferAndSpectrum() {
-    const auto buffer = makeNoiseBuffer<float, 100000>();
-    const auto spectrum = [&]() {
-        BufferAverager<float, FFTSize * 2> accumulator{};
-        FFTHelper<float, FFTSize> fft{};
-        for (auto &&sample : buffer) {
-            const auto result = fft.perform(sample);
-            if (result != std::nullopt)
-                accumulator.perform(result.value());
-        }
-        return accumulator.getBuffer();
-    }();
-
-    return std::tuple(buffer, spectrum);
+template<typename SampleType, size_t FFTSize, typename T>
+auto makeNoiseSpectrum(const T& buffer) {
+    BufferAverager<SampleType, FFTSize * 2> accumulator{};
+    FFTHelper<FFTSize> fft{};
+    for (auto &&sample : buffer) {
+        const auto result = fft.perform(static_cast<float>(sample));
+        if (result != std::nullopt)
+            accumulator.perform(result.value());
+    }
+    return accumulator.getBuffer();
 }
 
+template<typename T, size_t BufferSize, size_t SpectrumSize>
+auto makeNoiseBufferAndSpectrum() {
+    const auto buffer = makeNoiseBuffer<T, BufferSize>();
+    const auto spectrum = makeNoiseSpectrum<T, SpectrumSize>(buffer);
+    return std::pair{buffer, spectrum};
+}
 
-template<typename FilterType, typename NoiseBuffer, typename NoiseSpectrum>
-struct FilterTestContext {
-    FilterTestContext(double newCutoff, const QCoefficient<double>& newQ,
-                      double newSampleRate, FilterType&& newFilter,
-                      const Decibel<double>& newRolloffPerOctave, const Decibel<double>& newTolerance,
-                      const NoiseBuffer& newNoiseBuffer, const NoiseSpectrum& newNoiseSpectrum)
-                      : cutoff(newCutoff), q(newQ), sampleRate(newSampleRate), filter(std::move(newFilter)),
-                      rolloffPerOctave(newRolloffPerOctave), tolerance(newTolerance),
-                      noiseBuffer(newNoiseBuffer), noiseSpectrum(newNoiseSpectrum)
-    {}
+//Hold a buffer of noise and its spectrum for use in multiple test cases
+//Making these is time intensive, the tests take too long as is,
+// semantically one buffer/spectrum of noise is equivalent to another,
+// so this lets the filter test context cache a set based on type
+template<typename SampleType>
+struct NoiseContext
+{
+private:
+    //Initialize the buffer and spectrum together in a single function to prevent static order initialization fiasco
+    static const inline auto vars = makeNoiseBufferAndSpectrum<SampleType, 100000, 1024>();
 
-    FilterTestContext(double newCutoff, const QCoefficient<double>& newQ,
-                      double newSampleRate, double newGain, FilterType&& newFilter,
-                      const Decibel<double>& newRolloffPerOctave, const Decibel<double>& newTolerance,
-                      const NoiseBuffer& newNoiseBuffer, const NoiseSpectrum& newNoiseSpectrum)
-            : cutoff(newCutoff), q(newQ), sampleRate(newSampleRate), filter(std::move(newFilter)), filterGain(newGain),
-              rolloffPerOctave(newRolloffPerOctave), tolerance(newTolerance),
-              noiseBuffer(newNoiseBuffer), noiseSpectrum(newNoiseSpectrum)
-    {}
+public:
+    //Provide references to the buffer and spectrum
+    static auto& getBuffer() {
+        return vars.first;
+    }
 
-    double cutoff;
-    QCoefficient<double> q;
-    double sampleRate;
-    double filterGain = 1.0;
-    FilterType filter;
+    static auto& getSpectrum() {
+        return vars.second;
+    }
+};
 
-    Decibel<double> rolloffPerOctave, tolerance;
+template<typename FFTSize, typename FilterType, typename T>
+struct FilterTestContext 
+{
+public:
+    using SampleType = T;
 
-    const NoiseBuffer noiseBuffer;
-    const NoiseSpectrum noiseSpectrum;
+    static constexpr size_t SpectrumSize = FFTSize::value*2;
 
-    static constexpr size_t SpectrumSize = std::tuple_size_v<NoiseSpectrum>;
+    FilterTestContext(SampleType newCutoff, const QCoefficient<SampleType>& newQ,
+                      SampleType newSampleRate, SampleType newGain, FilterType&& newFilter,
+                      const Decibel<SampleType>& newRolloffPerOctave, const Decibel<SampleType>& newTolerance)//,
+            : cutoff(newCutoff), q(newQ), sampleRate(newSampleRate), filterGain(newGain), filter(std::move(newFilter)),
+              rolloffPerOctave(newRolloffPerOctave), tolerance(newTolerance) {}
 
-    FFTHelper<float, SpectrumSize/2> fft{};
+    SampleType cutoff{};
+    QCoefficient<SampleType> q{0};
+    SampleType sampleRate{};
+    SampleType filterGain{};
+    FilterType filter{};
+
+    Decibel<SampleType> rolloffPerOctave{}, tolerance{};
+
+    const static inline auto&  noiseBuffer =
+            NoiseContext<SampleType>::getBuffer();
+    const static inline auto& noiseSpectrum =
+            NoiseContext<SampleType>::getSpectrum();
+//    decltype(NoiseContext<SampleType>::buffer) noiseBuffer   =
+//            NoiseContext<SampleType>::buffer;
+//    decltype(NoiseContext<SampleType>::spectrum) noiseSpectrum =
+//            NoiseContext<SampleType>::spectrum;
+
+    FFTHelper<FFTSize::value> fft{};
 
     void reset() { fft.reset(); filter.reset(); }
 };
-
-template<typename FilterType, typename V, typename W>
-FilterTestContext(double, QCoefficient<double>, double, FilterType,
-                  Decibel<double>, Decibel<double>,
-                  V, W) ->
-FilterTestContext<FilterType, V, W>;
-
-template<typename FilterType, typename V, typename W>
-FilterTestContext(double, QCoefficient<double>, double, FilterType, double,
-                  Decibel<double>, Decibel<double>,
-                  V, W) ->
-FilterTestContext<FilterType, V, W>;
 
 
 enum FilterResponse {
@@ -132,23 +140,8 @@ auto setupFilter(const T& cutoff, const QCoefficient<T>& q, const T& sampleRate,
         return makeJuceDspIir<Filter, Response>(cutoff, q, sampleRate, gain);
 }
 
-template<size_t FFTSize, FilterResponse Response, typename Filter, typename T>
-auto makeFilterContext(T cutoff, QCoefficient<T> q, T sampleRate, T gain,
-                       Decibel<T> rolloff, Decibel<T> tolerance)
-{
-    const auto& [noiseBuffer, noiseSpectrum] = makeNoiseBufferAndSpectrum<FFTSize>();
-// TODO: check why using references in the test context for the noise stuff doesn't work
-    return FilterTestContext{cutoff, q, sampleRate, gain,
-                             std::move(setupFilter<Filter, Response>(cutoff,
-                                                                     q,
-                                                                     sampleRate,
-                                                                     gain)),
-                             rolloff, tolerance,
-                             noiseBuffer, noiseSpectrum};
-}
-
 template<FilterResponse Response, typename... Ts>
-constexpr auto runFilterTests(FilterTestContext<Ts...>& testContext) noexcept {
+auto runFilterTests(FilterTestContext<Ts...>& testContext) noexcept {
 if constexpr (Response == FilterResponse::Lowpass)
     testLowpassResponse(testContext);
 else if constexpr (Response == FilterResponse::Highpass)
