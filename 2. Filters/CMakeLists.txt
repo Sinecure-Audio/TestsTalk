@@ -22,8 +22,15 @@ target_link_libraries(FilterUtilityTests PRIVATE CommonCode)
 #Make a target for filter tests and add all of the source files for it
 add_executable(FilterTests
         "${CMAKE_CURRENT_LIST_DIR}/../TestMain.cpp"
-        "${CMAKE_CURRENT_LIST_DIR}/FilterTests.cpp"
-        )
+        "${CMAKE_CURRENT_LIST_DIR}/FilterTests/LowpassFilterTests.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/FilterTests/HighpassFilterTests.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/FilterTests/BandpassFilterTests.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/FilterTests/BandrejectFilterTests.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/FilterTests/AllpassFilterTests.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/FilterTests/PeakFilterTests.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/FilterTests/LowShelfFilterTests.cpp"
+        "${CMAKE_CURRENT_LIST_DIR}/FilterTests/HighShelfFilterTests.cpp"
+        FilterTests/LowpassFilterTests.cpp FilterTests/HighpassFilterTests.cpp FilterTests/BandpassFilterTests.cpp FilterTests/AllpassFilterTests.cpp FilterTests/BandrejectFilterTests.cpp FilterTests/PeakFilterTests.cpp FilterTests/LowShelfFilterTests.cpp FilterTests/HighShelfFilterTests.cpp)
 
 #Link our common libraries to the Filter tests target
 target_link_libraries(FilterTests PRIVATE CommonCode)

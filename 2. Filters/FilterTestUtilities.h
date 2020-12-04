@@ -14,11 +14,12 @@ auto makeNoiseBuffer() {
     return vec;
 }
 
+//Generate a spectrum from a buffer
 template<typename SampleType, size_t FFTSize, typename T>
-auto makeNoiseSpectrum(const T& buffer) {
+auto makeSpectrum(const T& noiseBuffer) {
     BufferAverager<SampleType, FFTSize * 2> accumulator{};
     FFTHelper<FFTSize> fft{};
-    for (auto &&sample : buffer) {
+    for (auto &&sample : noiseBuffer) {
         const auto result = fft.perform(static_cast<float>(sample));
         if (result != std::nullopt)
             accumulator.perform(result.value());
@@ -29,7 +30,7 @@ auto makeNoiseSpectrum(const T& buffer) {
 template<typename T, size_t BufferSize, size_t SpectrumSize>
 auto makeNoiseBufferAndSpectrum() {
     const auto buffer = makeNoiseBuffer<T, BufferSize>();
-    const auto spectrum = makeNoiseSpectrum<T, SpectrumSize>(buffer);
+    const auto spectrum = makeSpectrum<T, SpectrumSize>(buffer);
     return std::pair{buffer, spectrum};
 }
 
@@ -46,13 +47,8 @@ private:
 
 public:
     //Provide references to the buffer and spectrum
-    static auto& getBuffer() {
-        return vars.first;
-    }
-
-    static auto& getSpectrum() {
-        return vars.second;
-    }
+    static const auto& getBuffer()   noexcept { return vars.first; }
+    static const auto& getSpectrum() noexcept { return vars.second; }
 };
 
 template<typename FFTSize, typename FilterType, typename T>
@@ -81,14 +77,9 @@ public:
             NoiseContext<SampleType>::getBuffer();
     const static inline auto& noiseSpectrum =
             NoiseContext<SampleType>::getSpectrum();
-//    decltype(NoiseContext<SampleType>::buffer) noiseBuffer   =
-//            NoiseContext<SampleType>::buffer;
-//    decltype(NoiseContext<SampleType>::spectrum) noiseSpectrum =
-//            NoiseContext<SampleType>::spectrum;
 
+// Don't make this static as it will cause thread safety issues w/ Ctest
     FFTHelper<FFTSize::value> fft{};
-
-    void reset() { fft.reset(); filter.reset(); }
 };
 
 
@@ -133,6 +124,10 @@ auto makeJuceDspIir(const T& cutoff, const QCoefficient<T>& q, const T& sampleRa
     }
 }
 
+//A function that delegates the creation of a filter based on the desired
+// filter type
+// Right now the tests only support JUCE's IIR filter so it only makes IIR
+// filters
 template<typename Filter, FilterResponse Response, typename T>
 auto setupFilter(const T& cutoff, const QCoefficient<T>& q, const T& sampleRate, const T& gain = T{1}) {
     if constexpr(std::is_same_v<Filter, juce::dsp::IIR::Filter<float>>
@@ -140,35 +135,35 @@ auto setupFilter(const T& cutoff, const QCoefficient<T>& q, const T& sampleRate,
         return makeJuceDspIir<Filter, Response>(cutoff, q, sampleRate, gain);
 }
 
-template<FilterResponse Response, typename... Ts>
-auto runFilterTests(FilterTestContext<Ts...>& testContext) noexcept {
-if constexpr (Response == FilterResponse::Lowpass)
-    testLowpassResponse(testContext);
-else if constexpr (Response == FilterResponse::Highpass)
-    testHighpassResponse(testContext);
-else if constexpr (Response == FilterResponse::Bandpass)
-    testBandpassResponse(testContext);
-else if constexpr (Response == FilterResponse::BandReject)
-    testBandrejectResponse(testContext);
-else if constexpr (Response == FilterResponse::Allpass)
-    testAllpassResponse(testContext);
-else if constexpr (Response == FilterResponse::Peak)
-    testPeakResponse(testContext);
-else if constexpr (Response == FilterResponse::LowShelf)
-    testLowShelfResponse(testContext);
-else if constexpr (Response == FilterResponse::HighShelf)
-    testHighShelfResponse(testContext);
-}
+//template<FilterResponse Response, typename... Ts>
+//auto runFilterTests(FilterTestContext<Ts...>& testContext) noexcept {
+//if constexpr (Response == FilterResponse::Lowpass)
+//    testLowpassResponse(testContext);
+//else if constexpr (Response == FilterResponse::Highpass)
+//    testHighpassResponse(testContext);
+//else if constexpr (Response == FilterResponse::Bandpass)
+//    testBandpassResponse(testContext);
+//else if constexpr (Response == FilterResponse::BandReject)
+//    testBandrejectResponse(testContext);
+//else if constexpr (Response == FilterResponse::Allpass)
+//    testAllpassResponse(testContext);
+//else if constexpr (Response == FilterResponse::Peak)
+//    testPeakResponse(testContext);
+//else if constexpr (Response == FilterResponse::LowShelf)
+//    testLowShelfResponse(testContext);
+//else if constexpr (Response == FilterResponse::HighShelf)
+//    testHighShelfResponse(testContext);
+//}
 
 //TODO: Add variable Q
 //Eventually, add random Q's for low/high/bandpass and bandreject
 //For now, just use .707 i.e. flat
 template<FilterResponse Response, typename T>
 constexpr auto getQValue() {
-//    if constexpr(FILTERTYPE < 4)
-    return QCoefficient<T>(std::sqrt(T{2})/T{2});
-//    else
-//        return QCoefficient<T>{T{1}};
+    if constexpr(static_cast<size_t>(Response) < 4)
+        return QCoefficient<T>(std::sqrt(T{2})/T{2});
+    else
+        return QCoefficient<T>{T{1}};
 }
 
 //If we're testing a shelf or peak filter, generate a random gain
@@ -181,4 +176,26 @@ constexpr auto getGainValue() {
         return GENERATE(take(10, random(T{.1}, T{100})));
     else
         return T{1};
+}
+
+template<typename FilterType, FilterResponse Response, typename T>
+auto getFilterContext() noexcept {
+    static constexpr size_t FFTSize = 1024;
+
+    constexpr auto sampleRate = T{ 44100 };
+
+    //Generate a series of cutoffs equal to each bin's frequency
+    const auto binNumber = GENERATE(range(size_t{1}, FFTSize/2));
+    const auto cutoff = binNumber*sampleRate/FFTSize;
+
+    const auto q    = getQValue<Response, T>();
+    const auto gain = getGainValue<Response, T>();
+
+    //A level for determining how close the measured level has to be to the expected level
+    constexpr auto tolerance = Decibel{ T{-4} };
+
+    return FilterTestContext<std::integral_constant<size_t, FFTSize>, FilterType, T>
+            {cutoff, q, sampleRate, gain,
+             setupFilter<FilterType, Response, T>(cutoff, q, sampleRate, gain),
+             Decibel{T{-12}}, tolerance};
 }
