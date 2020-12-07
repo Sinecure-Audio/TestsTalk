@@ -4,34 +4,34 @@ cmake_minimum_required(VERSION 3.12)
 project(TestExamples)
 
 #add our c++ standard and optimizations
-#You should normally be using debug build
-#but if you don't, in this case the tests can take a while to run...
-#I use Ofast instead of O3 because I'd like to make sure the algorithms retains accuracy
-#Ofast can enable optimizations that reduce math accuracy be reordering operations
-if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
-    add_compile_options( -Ofast -fopenmp)
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
-    add_compile_options(-Ofast)
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
-    add_compile_options(-Ofast)
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
-    if(CMAKE_BUILD_TYPE="Release")
-        #No fast math because it fails
-        add_compile_options(/O2 /Ot /Ob2 /Oi /GL)
-    endif()
-#Lots of compilers can masquerade as GNU, so check for it last
-elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
-    add_compile_options(-Ofast -fopenmp)
-endif()
-
 set(CMAKE_CONFIGURATION_TYPES "Release;Debug")
 #Set the compiler to use c++17, depending on which compiler we use.
 if (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
     #remove extra configurations, make release the default
-#    set(CMAKE_CONFIGURATION_TYPES "Release;Debug")
     add_compile_options(/std:c++17)
 else()
     add_compile_options(-std=c++17)
+endif()
+
+#You should normally be using debug build
+#but if you don't, in this case the tests can take a while to run...
+#I use Ofast instead of O3 because I'd like to make sure the algorithms retains accuracy
+#Ofast can enable optimizations that reduce math accuracy be reordering operations
+if(CMAKE_CONFIGURATION_TYPES STREQUAL "Release")
+    #Clang masquerades as a lot of compilers, so check it first.
+    if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
+        add_compile_options( -Ofast -fopenmp)
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "AppleClang")
+        add_compile_options(-Ofast)
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "Intel")
+        add_compile_options(-Ofast)
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "MSVC")
+        #No fast math in msvc because it fails
+        add_compile_options(/O2 /Ot /Ob2 /Oi /GL)
+    #Lots of compilers can masquerade as GNU, so check for it last
+    elseif (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
+        add_compile_options(-Ofast -fopenmp)
+    endif()
 endif()
 
 #Make sure the user defined a path for JUCE- error if they did not.
@@ -105,7 +105,9 @@ if(NOT DEFINED NUM_CORES)
     #Set the number of parallel jobs ctest can use to the number of cores on the machine
     include(ProcessorCount)
     ProcessorCount(NUM_CORES)
-    math(EXPR NumCores "${NUM_CORES}/2")
+    if(USE_ALL_CORES)
+        math(EXPR NumCores "${NUM_CORES}/2")
+    endif()
 endif()
 
 #Add the number of cores to use, as well as desired verbosity to CTest's arguments

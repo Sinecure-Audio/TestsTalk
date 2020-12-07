@@ -1,0 +1,111 @@
+name: Run_Tests
+
+on: 
+  pull_request:
+    branches: [ master ]
+  workflow_dispatch:
+  schedule:
+    # * is a special character in YAML so you have to quote this string
+    # Run at midnight UTC every saturday- basically check to see if catch or github runners have broken the repo this week in a way that notifies me at the start of my weekend
+    - cron:  '0 0 * * 6'  
+
+jobs:
+  build:
+    runs-on: ${{ matrix.config.os }} 
+    strategy:
+      #if one test fails, it might do so uniquely- not stopping all tests when one fails can therefore give us more information in case multiple problems exist
+      fail-fast: false
+      matrix:
+        #List all os/compiler/build_type configs. Sudo flag is used as a variable which is empty on windows runs (because windows can't sudo)
+        config:  
+          - { os: ubuntu-20.04,   name: Ubuntu 20 gcc 7          cc: gcc-7.5,  cxx: g++-7,                                                    sudo: sudo, test_name: tests }
+          - { os: ubuntu-20.04,   name: Ubuntu 20 gcc 8          cc: gcc-8.4,  cxx: g++-8,                                                    sudo: sudo, test_name: tests }
+          - { os: ubuntu-20.04,   name: Ubuntu 20 gcc 9          cc: gcc-9.3,  cxx: g++-9,                                                    sudo: sudo, test_name: tests }
+          - { os: ubuntu-20.04,   name: Ubuntu 20 gcc 10         cc: gcc-10.2, cxx: g++-10,                                                   sudo: sudo, test_name: tests }
+          - { os: ubuntu-20.04,   name: Ubuntu 20 clang 8        cc: clang-8,  cxx: clang++-8,                                                sudo: sudo, test_name: tests } 
+          - { os: ubuntu-20.04,   name: Ubuntu 20 clang 9        cc: clang-9,  cxx: clang++-9,                                                sudo: sudo, test_name: tests }
+          - { os: ubuntu-20.04,   name: Ubuntu 20 clang 10       cc: clang-10, cxx: clang++-10,                                               sudo: sudo, test_name: tests }
+
+          - { os: ubuntu-18.04,   name: Ubuntu 18 gcc 7          cc: gcc-7.5,  cxx: g++-7,                                                    sudo: sudo, test_name: tests }
+          - { os: ubuntu-18.04,   name: Ubuntu 18 gcc 8          cc: gcc-8.4,  cxx: g++-8,                                                    sudo: sudo, test_name: tests }
+          - { os: ubuntu-18.04,   name: Ubuntu 18 gcc 9          cc: gcc-9.3,  cxx: g++-9,                                                    sudo: sudo, test_name: tests }
+          - { os: ubuntu-18.04,   name: Ubuntu 18 gcc 10         cc: gcc-10.2, cxx: g++-10,                                                   sudo: sudo, test_name: tests }
+          - { os: ubuntu-18.04,   name: Ubuntu 18 clang 8        cc: clang-8,  cxx: clang++-8,                                                sudo: sudo, test_name: tests } 
+          - { os: ubuntu-18.04,   name: Ubuntu 18 clang 9        cc: clang-9,  cxx: clang++-9,                                                sudo: sudo, test_name: tests }          
+
+          - { os: ubuntu-16.04,   name: Ubuntu 16 gcc 7          cc: gcc-7.5,  cxx: g++-7,                                                    sudo: sudo, test_name: tests }
+          - { os: ubuntu-16.04,   name: Ubuntu 16 gcc 8          cc: gcc-8.4,  cxx: g++-8,                                                    sudo: sudo, test_name: tests }
+          - { os: ubuntu-16.04,   name: Ubuntu 16 gcc 9          cc: gcc-9.3,  cxx: g++-9,                                                    sudo: sudo, test_name: tests }
+          - { os: ubuntu-16.04,   name: Ubuntu 16 clang 8        cc: clang-8,  cxx: clang++-8,                                                sudo: sudo, test_name: tests } 
+          - { os: ubuntu-16.04,   name: Ubuntu 16 clang 9        cc: clang-9,  cxx: clang++-9,                                                sudo: sudo, test_name: tests } 
+ 
+          - { os: macos-10.15,    name: macOS 10.15 gcc 8        cc: gcc-8,    cxx: g++-8,                                                    sudo: sudo, test_name: tests }
+          - { os: macos-10.15,    name: macOS 10.15 gcc 9        cc: gcc-9,    cxx: g++-9,                                                    sudo: sudo, test_name: tests }
+          - { os: macos-10.15,    name: macOS 10.15 clang 11     cc: /usr/local/opt/llvm/bin/clang,  cxx: /usr/local/opt/llvm/bin/clang++,    sudo: sudo, test_name: tests }
+          - { os: macos-10.15,    name: macOS 10.15 Apple Clang  cc: clang,    cxx: clang++,                                                  sudo: sudo, test_name: tests } 
+
+          - { os: macos-11.0,     name: macOS 11.0 gcc 8         cc: gcc-8,    cxx: g++-8,                                                    sudo: sudo, test_name: tests } 
+          - { os: macos-11.0,     name: macOS 11.0 gcc 9         cc: gcc-9,    cxx: g++-9,                                                    sudo: sudo, test_name: tests } 
+          - { os: macos-11.0,     name: macOS 11.0 clang 11      cc: /usr/local/opt/llvm/bin/clang,  cxx: /usr/local/opt/llvm/bin/clang++,    sudo: sudo, test_name: tests } 
+          - { os: macos-11.0,     name: macOS 11.0 Apple Clang   cc: clang,    cxx: clang++,                                                  sudo: sudo, test_name: tests } 
+
+          - { os: windows-latest, name: Windows cl               cc: cl,       cxx: cl,                                                       sudo: , test_name: RUN_TESTS }
+          - { os: windows-latest, name: Windows clang            cc: clang-cl, cxx: clang-cl,                                                 sudo: , test_name: RUN_TESTS }   
+          
+
+    steps:
+    #Checkout this repo
+    - name: Checkout repo
+      uses: actions/checkout@v2
+      with:
+        path: main
+
+    #Checkout Catch
+    - name: Checkout Catch
+      uses: actions/checkout@v2
+      with:
+        repository: 'catchorg/Catch2'
+        ref: 'v2.x'
+        path: Catch2
+
+    #Checkout JUCE
+    - name: Checkout JUCE
+      uses: actions/checkout@v2
+      with:
+        repository: 'juce-framework/JUCE'
+        ref: 'master'
+        path: JUCE
+
+    #Install catch via cmake
+    - name: Install Catch
+      run: |
+        cd Catch2
+        cmake -Bbuild -S. -DBUILD_TESTING=OFF
+        ${{ matrix.config.sudo }} cmake --build build/ --target install
+      
+    #Create the directory for our builds and tests
+    - name: Create Build Environment
+      # Some projects don't allow in-source building, so create a separate build directory
+      # We'll use this as our working directory for all subsequent commands
+      run: cmake -E make_directory ${{runner.workspace}}/build
+
+    #Have cmake generate a makefile (or visual studio project on windows) with the appropriate build type and compiler
+    - name: Configure CMake
+      working-directory: ${{runner.workspace}}/build
+      # Note the current convention is to use the -S and -B options here to specify source 
+      # and build directories, but this is only available with CMake 3.13 and higher.  
+      # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
+      run: cmake ${{runner.workspace}}/Units/main/tests -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER="${{ matrix.config.cxx }}" -DJUCE_PATH="${{runner.workspace}}/Units/JUCE" -DUSE_ALL_CORES=TRUE
+
+    #Have cmake build our test binaries
+    - name: Build
+      working-directory: ${{runner.workspace}}/build
+      # Execute the build.  You can specify a specific target with "--target <NAME>"
+      run: cmake --build . --config Release
+
+    #Run the tests.
+    - name: Run Tests
+      working-directory: ${{runner.workspace}}/build
+      if: matrix.config.os != 'windows-latest'
+      # Execute tests defined by the CMake configuration. 
+      run: cmake --build . --config Release --target "${{ matrix.config.build.test_name }}"
