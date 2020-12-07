@@ -84,15 +84,15 @@ jobs:
         cmake -Bbuild -S. -DBUILD_TESTING=OFF
         ${{ matrix.config.sudo }} cmake --build build/ --target install
 
-    - name: Survey environment
+    - name: Get directory
       run: |
         cd ./
-        ls -l .
+        pwd
 
-    - name: Survey Parent environment
+    - name: Get working directory
       run: |
-        cd ../
-        ls -l .
+        cd ./
+        echo ${{runner.workspace}}
 
     #Create the directory for our builds and tests
     - name: Create Build Environment
