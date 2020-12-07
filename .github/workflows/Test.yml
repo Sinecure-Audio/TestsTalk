@@ -16,7 +16,6 @@ jobs:
       #if one test fails, it might do so uniquely- not stopping all tests when one fails can therefore give us more information in case multiple problems exist
       fail-fast: false
       matrix:
-        #List all os/compiler/build_type configs. Sudo flag is used as a variable which is empty on windows runs (because windows can't sudo)
         config:  
           - { os: ubuntu-20.04,   name: Ubuntu 20 gcc 7          cc: gcc-7.5,  cxx: g++-7,                                                    sudo: sudo, test_name: tests }
           - { os: ubuntu-20.04,   name: Ubuntu 20 gcc 8          cc: gcc-8.4,  cxx: g++-8,                                                    sudo: sudo, test_name: tests }
