@@ -60,6 +60,7 @@ jobs:
       uses: actions/checkout@v2
       with:
         path: main
+        submodules: recursive
 
     #Checkout Catch
     - name: Checkout Catch
@@ -76,6 +77,7 @@ jobs:
         repository: 'juce-framework/JUCE'
         ref: 'master'
         path: JUCE
+        submodules: recursive
 
     #Install catch via cmake
     - name: Install Catch
