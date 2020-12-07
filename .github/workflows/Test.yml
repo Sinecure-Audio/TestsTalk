@@ -88,7 +88,7 @@ jobs:
 
       #Install JUCE's Linux deps
     - name: Install Linux Dependencies
-      if: runner.os == "Linux"
+      if: runner.os == 'Linux'
       run: |
         sudo apt update
         sudo apt install libasound2-dev libjack-jackd2-dev \
