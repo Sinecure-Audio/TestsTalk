@@ -2,8 +2,8 @@ name: Run_Tests
 
 on: 
   push:
-  pull_request:
-    branches: [ master ]
+  # pull_request:
+  #   branches: [ master ]
   workflow_dispatch:
   schedule:
     # * is a special character in YAML so you have to quote this string
@@ -96,7 +96,7 @@ jobs:
       # Note the current convention is to use the -S and -B options here to specify source 
       # and build directories, but this is only available with CMake 3.13 and higher.  
       # The CMake binaries on the Github Actions machines are (as of this writing) 3.12
-      run: cmake ${{runner.workspace}}/Units/main/tests -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER="${{ matrix.config.cxx }}" -DJUCE_PATH="${{runner.workspace}}/Units/JUCE" -DUSE_ALL_CORES=TRUE
+      run: cmake ${{runner.workspace}}/TestsTalk/main/tests -DCMAKE_BUILD_TYPE=Release -DCMAKE_CXX_COMPILER="${{ matrix.config.cxx }}" -DJUCE_PATH="${{runner.workspace}}/TestsTalk/JUCE" -DUSE_ALL_CORES=TRUE
 
     #Have cmake build our test binaries
     - name: Build
