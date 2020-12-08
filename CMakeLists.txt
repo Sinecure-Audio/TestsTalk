@@ -14,10 +14,14 @@ else()
 endif()
 
 #You should normally be using debug build
-#but if you don't, in this case the tests can take a while to run...
-#I use Ofast instead of O3 because I'd like to make sure the algorithms retains accuracy
-#Ofast can enable optimizations that reduce math accuracy be reordering operations
-if(CMAKE_CONFIGURATION_TYPES STREQUAL "Release")
+#but if you do that with these tests, they can take a while to run...
+if(CMAKE_CONFIGURATION_TYPES STREQUAL "Debug")
+    add_definitions(-DDEBUG=1)
+    add_definitions(-DJUCE_DEBUG=1)
+elseif(CMAKE_CONFIGURATION_TYPES STREQUAL "Release")
+    add_definitions(-DNDEBUG=1)
+    #I use Ofast instead of O3 because I'd like to make sure the algorithms retains accuracy
+    #Ofast can enable optimizations that reduce math accuracy be reordering operations
     #Clang masquerades as a lot of compilers, so check it first.
     if (CMAKE_CXX_COMPILER_ID STREQUAL "Clang")
         add_compile_options( -Ofast -fopenmp)
@@ -112,7 +116,6 @@ endif()
 
 #Add the number of cores to use, as well as desired verbosity to CTest's arguments
 list(APPEND CMAKE_CTEST_ARGUMENTS -j${NUM_CORES} --extra-verbose)
-
 
 #Add Directories for the Tests
 add_subdirectory("1. Oscillator/Examples")

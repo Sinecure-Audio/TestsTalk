@@ -22,22 +22,22 @@ jobs:
           - { os: ubuntu-20.04,   name: Ubuntu 20 gcc 8,          cc: gcc-8.4,  cxx: g++-8,                                                    sudo: sudo, test_name: tests }
           - { os: ubuntu-20.04,   name: Ubuntu 20 gcc 9,          cc: gcc-9.3,  cxx: g++-9,                                                    sudo: sudo, test_name: tests }
           - { os: ubuntu-20.04,   name: Ubuntu 20 gcc 10,         cc: gcc-10.2, cxx: g++-10,                                                   sudo: sudo, test_name: tests }
-          # - { os: ubuntu-20.04,   name: Ubuntu 20 clang 8,        cc: clang-8,  cxx: clang++-8,                                                sudo: sudo, test_name: tests } 
-          # - { os: ubuntu-20.04,   name: Ubuntu 20 clang 9,        cc: clang-9,  cxx: clang++-9,                                                sudo: sudo, test_name: tests }
-          # - { os: ubuntu-20.04,   name: Ubuntu 20 clang 10,       cc: clang-10, cxx: clang++-10,                                               sudo: sudo, test_name: tests }
+          - { os: ubuntu-20.04,   name: Ubuntu 20 clang 8,        cc: clang-8,  cxx: clang++-8,                                                sudo: sudo, test_name: tests } 
+          - { os: ubuntu-20.04,   name: Ubuntu 20 clang 9,        cc: clang-9,  cxx: clang++-9,                                                sudo: sudo, test_name: tests }
+          - { os: ubuntu-20.04,   name: Ubuntu 20 clang 10,       cc: clang-10, cxx: clang++-10,                                               sudo: sudo, test_name: tests }
 
           - { os: ubuntu-18.04,   name: Ubuntu 18 gcc 7,          cc: gcc-7.5,  cxx: g++-7,                                                    sudo: sudo, test_name: tests }
           - { os: ubuntu-18.04,   name: Ubuntu 18 gcc 8,          cc: gcc-8.4,  cxx: g++-8,                                                    sudo: sudo, test_name: tests }
           - { os: ubuntu-18.04,   name: Ubuntu 18 gcc 9,          cc: gcc-9.3,  cxx: g++-9,                                                    sudo: sudo, test_name: tests }
           - { os: ubuntu-18.04,   name: Ubuntu 18 gcc 10,         cc: gcc-10.2, cxx: g++-10,                                                   sudo: sudo, test_name: tests }
-          # - { os: ubuntu-18.04,   name: Ubuntu 18 clang 8,        cc: clang-8,  cxx: clang++-8,                                                sudo: sudo, test_name: tests } 
-          # - { os: ubuntu-18.04,   name: Ubuntu 18 clang 9,        cc: clang-9,  cxx: clang++-9,                                                sudo: sudo, test_name: tests }          
+          - { os: ubuntu-18.04,   name: Ubuntu 18 clang 8,        cc: clang-8,  cxx: clang++-8,                                                sudo: sudo, test_name: tests } 
+          - { os: ubuntu-18.04,   name: Ubuntu 18 clang 9,        cc: clang-9,  cxx: clang++-9,                                                sudo: sudo, test_name: tests }          
 
           - { os: ubuntu-16.04,   name: Ubuntu 16 gcc 7,          cc: gcc-7.5,  cxx: g++-7,                                                    sudo: sudo, test_name: tests }
           - { os: ubuntu-16.04,   name: Ubuntu 16 gcc 8,          cc: gcc-8.4,  cxx: g++-8,                                                    sudo: sudo, test_name: tests }
           - { os: ubuntu-16.04,   name: Ubuntu 16 gcc 9,          cc: gcc-9.3,  cxx: g++-9,                                                    sudo: sudo, test_name: tests }
-          # - { os: ubuntu-16.04,   name: Ubuntu 16 clang 8,        cc: clang-8,  cxx: clang++-8,                                                sudo: sudo, test_name: tests } 
-          # - { os: ubuntu-16.04,   name: Ubuntu 16 clang 9,        cc: clang-9,  cxx: clang++-9,                                                sudo: sudo, test_name: tests } 
+          - { os: ubuntu-16.04,   name: Ubuntu 16 clang 8,        cc: clang-8,  cxx: clang++-8,                                                sudo: sudo, test_name: tests } 
+          - { os: ubuntu-16.04,   name: Ubuntu 16 clang 9,        cc: clang-9,  cxx: clang++-9,                                                sudo: sudo, test_name: tests } 
  
           # - { os: macos-10.15,    name: macOS 10.15 gcc 8,        cc: gcc-8,    cxx: g++-8,                                                    sudo: sudo, test_name: tests }
           # - { os: macos-10.15,    name: macOS 10.15 gcc 9,        cc: gcc-9,    cxx: g++-9,                                                    sudo: sudo, test_name: tests }
@@ -95,6 +95,7 @@ jobs:
         libfreetype6-dev \
         libx11-dev libxcomposite-dev libxcursor-dev libxcursor-dev libxext-dev libxinerama-dev libxrandr-dev libxrender-dev \
         libwebkit2gtk-4.0-dev \
+        libgtk-3-dev \
         libglu1-mesa-dev mesa-common-dev
 
     #Create the directory for our builds and tests
