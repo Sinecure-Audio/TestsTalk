@@ -1,3 +1,5 @@
+![image](https://github.com/Sinecure-Audio/TestsTalk/workflows/Run_Tests/badge.svg)
+
 This is a collection of test examples made for my talk, "Lessons Learned From a Year of Unit Testing Audio Code" that I presented as part of ADC'20. They are meant to demonstrate the application of TDD to DSP development, and the verification of correct behavior of simple musical DSP processors.
 
 All of the examples require Catch2 and CMake to be installed, as well as a copy of JUCE. This project requires CMake 3.12 or higher. You can find instructions for installing Catch2 here: 
