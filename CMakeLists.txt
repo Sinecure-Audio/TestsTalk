@@ -18,7 +18,10 @@ endif()
 if(CMAKE_CONFIGURATION_TYPES STREQUAL "Debug")
     add_definitions(-DDEBUG=1)
     add_definitions(-DJUCE_DEBUG=1)
+    add_definitions(-DNDEBUG=0)
 elseif(CMAKE_CONFIGURATION_TYPES STREQUAL "Release")
+    add_definitions(-DDEBUG=0)
+    add_definitions(-DJUCE_DEBUG=0)
     add_definitions(-DNDEBUG=1)
     #I use Ofast instead of O3 because I'd like to make sure the algorithms retains accuracy
     #Ofast can enable optimizations that reduce math accuracy be reordering operations
